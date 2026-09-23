@@ -62,3 +62,7 @@ Setup: puppeteer in `~/.datastrata` (shared with the DataStrata pipeline); `@dbm
 
 - A long-form `Ref name { ... }` block holds exactly **one** relationship.
 - A `Dep` block's edges must all feed the **same downstream table** and be the same level; no edge may repeat anywhere in the file. The docs' own example mixing table- and column-level edges in one block is rejected by the parser.
+
+## License
+
+MIT — see `LICENSE` (covers the code and the DBML reference example). Bundled third-party files keep their own licenses, included next to them: dagre (MIT, `web/vendor/LICENSE-dagre.txt`), JetBrains Mono and Inter (SIL Open Font License 1.1, `web/vendor/fonts/`).
