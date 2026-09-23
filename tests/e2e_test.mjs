@@ -466,6 +466,106 @@ await page.reload({ waitUntil: 'networkidle0' }); await page.waitForSelector('.n
 check('detail level remembered after reload', (await page.$eval('#detailLabel', el => el.textContent)) === 'Keys' && (await rowsOf('raw.stripe_charges')).length === 2);
 await page.screenshot({ path: `${OUT}/e2e_keys.png` });
 
+// ---- tabs: each tab = one DBML document + its own diagram state ----
+await page.evaluate(() => localStorage.clear());
+await page.reload({ waitUntil: 'networkidle0' }); await page.waitForSelector('.node');
+const tabInfo = () => page.evaluate(() => ({
+  names: [...document.querySelectorAll('.tab .tab-name')].map(e => e.textContent),
+  active: document.querySelector('.tab.active .tab-name')?.textContent,
+  tables: document.querySelectorAll('.node:not(.sticky-node):not(.group-node)').length,
+  src: document.getElementById('src').value,
+  dirtyDots: document.querySelectorAll('.tab.dirty').length,
+}));
+let ti = await tabInfo();
+check('first run: one tab, "Pipeline example"', ti.names.length === 1 && ti.active === 'Pipeline example' && ti.tables === 20, JSON.stringify(ti));
+// tab 1: drag a table and hide a group
+const posOf = id => page.evaluate(id => { const n = document.querySelector(`.node[data-id="${id}"]`); return n && [n.style.left, n.style.top].join(','); }, id);
+await page.evaluate(() => document.querySelector('.node[data-id="countries"] .head').scrollIntoView({ block:'center', inline:'center' }));
+const hd = await page.evaluate(() => { const r = document.querySelector('.node[data-id="countries"] .head').getBoundingClientRect(); return { x: r.x + 30, y: r.y + r.height/2 }; });
+await page.mouse.move(hd.x, hd.y); await page.mouse.down(); await page.mouse.move(hd.x + 80, hd.y + 40, { steps: 6 }); await page.mouse.up();
+const tab1Pos = await posOf('countries');
+await page.click('.tree-eye[data-scope="bucket"][data-key="Marketing Marts"]'); await new Promise(r => setTimeout(r, 150));
+check('tab 1: hiding a group works', (await tabInfo()).tables === 17);
+// new tab: empty, then its own schema
+await page.click('#tabAdd'); await new Promise(r => setTimeout(r, 150));
+ti = await tabInfo();
+check('+ opens an empty "Untitled" tab', ti.names.length === 2 && ti.active === 'Untitled' && ti.src === '' && ti.tables === 0, JSON.stringify(ti));
+await page.$eval('#src', el => el.focus());
+await page.keyboard.type('Project orders_demo {\n}\nTable users {\n  id int [pk]\n}\nTable orders {\n  id int [pk]\n  user_id int [ref: > users.id]\n}\n');
+await new Promise(r => setTimeout(r, 500));
+ti = await tabInfo();
+check('untitled tab names itself after its Project', ti.active === 'orders_demo' && ti.tables === 2, JSON.stringify(ti));
+// back to tab 1: its layout + hidden group are intact
+await page.click('.tab-btn[data-id]:not([aria-selected="true"])'); await new Promise(r => setTimeout(r, 200));
+ti = await tabInfo();
+check('switching back restores tab 1 content, hidden group and dragged position', ti.active === 'Pipeline example' && ti.tables === 17 && (await posOf('countries')) === tab1Pos, JSON.stringify({ ti, pos: await posOf('countries'), tab1Pos }));
+// and tab 2 did not inherit tab 1's hidden group
+await page.click('.tab-btn[data-id]:not([aria-selected="true"])'); await new Promise(r => setTimeout(r, 200));
+check('tab 2 keeps its own state', (await tabInfo()).tables === 2);
+// import through the file picker (multiple files)
+fs.writeFileSync('/tmp/import_a.dbml', 'Table a_one {\n  id int [pk]\n}\n');
+fs.writeFileSync('/tmp/import_b.dbml', 'Table b_one {\n  id int [pk]\n}\nTable b_two {\n  id int [pk]\n  one_id int [ref: > b_one.id]\n}\n');
+const input = await page.$('#importInput');
+await input.uploadFile('/tmp/import_a.dbml', '/tmp/import_b.dbml');
+await new Promise(r => setTimeout(r, 400));
+ti = await tabInfo();
+check('Import opens each file in its own new tab', ti.names.length === 4 && ti.names.includes('import_a.dbml') && ti.active === 'import_b.dbml' && ti.tables === 2, JSON.stringify(ti));
+// drag & drop a file onto the window
+await page.evaluate(() => {
+  const dt = new DataTransfer();
+  dt.items.add(new File(['Table dropped_t {\n  id int [pk]\n}\n'], 'dropped.dbml', { type: 'text/plain' }));
+  document.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true }));
+  document.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+});
+await new Promise(r => setTimeout(r, 400));
+ti = await tabInfo();
+check('dropping a .dbml opens it in a new tab', ti.active === 'dropped.dbml' && ti.tables === 1 && (await page.$eval('#dropOverlay', el => el.hidden)), JSON.stringify(ti));
+check('no unsaved dots in the browser version', ti.dirtyDots === 0);
+// rename
+await page.click('.tab.active .tab-btn', { count: 2, clickCount: 2 }); await new Promise(r => setTimeout(r, 100));
+await page.keyboard.type('Dropped schema'); await page.keyboard.press('Enter'); await new Promise(r => setTimeout(r, 150));
+check('double-click renames a tab', (await tabInfo()).active === 'Dropped schema');
+// close: non-empty asks first; Cancel keeps it
+await page.click('.tab.active .tab-close'); await new Promise(r => setTimeout(r, 150));
+let dlg = await page.evaluate(() => ({ open: !document.getElementById('modal').hidden, title: document.getElementById('modalTitle').textContent }));
+check('closing a tab with content asks first', dlg.open && /Close “Dropped schema”/.test(dlg.title), JSON.stringify(dlg));
+await page.keyboard.press('Escape'); await new Promise(r => setTimeout(r, 100));
+check('Esc / Cancel keeps the tab', (await tabInfo()).names.length === 5 && (await page.$eval('#modal', el => el.hidden)));
+await page.click('.tab.active .tab-close'); await new Promise(r => setTimeout(r, 100));
+await page.click('#modalActions .danger'); await new Promise(r => setTimeout(r, 200));
+ti = await tabInfo();
+check('confirming closes it', ti.names.length === 4 && !ti.names.includes('Dropped schema'), JSON.stringify(ti.names));
+// empty tab closes without asking
+await page.click('#tabAdd'); await new Promise(r => setTimeout(r, 100));
+await page.click('.tab.active .tab-close'); await new Promise(r => setTimeout(r, 150));
+check('an empty tab closes without a dialog', (await tabInfo()).names.length === 4 && (await page.$eval('#modal', el => el.hidden)));
+// keyboard: arrows move between tabs
+await page.focus('.tab.active .tab-btn');
+const beforeKey = (await tabInfo()).active;
+await page.keyboard.press('ArrowLeft'); await new Promise(r => setTimeout(r, 200));
+const afterKey = await tabInfo();
+check('Arrow keys switch tabs', afterKey.active !== beforeKey && (await page.evaluate(() => document.activeElement.classList.contains('tab-btn'))), `${beforeKey} -> ${afterKey.active}`);
+// example button jumps to its existing tab instead of duplicating
+await page.click('.examples-row button[data-ex="pipeline"]'); await new Promise(r => setTimeout(r, 200));
+ti = await tabInfo();
+check('example button reuses its open tab', ti.active === 'Pipeline example' && ti.names.filter(n => n === 'Pipeline example').length === 1, JSON.stringify(ti.names));
+// everything survives a reload
+const namesBefore = ti.names;
+await page.reload({ waitUntil: 'networkidle0' }); await page.waitForSelector('.tab');
+ti = await tabInfo();
+check('tabs, active tab, and per-tab state restored after reload', JSON.stringify(ti.names) === JSON.stringify(namesBefore) && ti.active === 'Pipeline example' && ti.tables === 17 && (await posOf('countries')) === tab1Pos, JSON.stringify({ ti, pos: await posOf('countries') }));
+await page.screenshot({ path: `${OUT}/e2e_tabs.png` });
+// migration from the single-document version
+await page.evaluate(() => {
+  localStorage.clear();
+  localStorage.setItem('lineage-src', 'Table legacy_t {\n  id int [pk]\n}\n');
+  localStorage.setItem('lineage-ui', JSON.stringify({ manualPos: { legacy_t: { x: 500, y: 300 } }, hidden: [], collapsed: [] }));
+});
+await page.reload({ waitUntil: 'networkidle0' }); await page.waitForSelector('.tab');
+ti = await tabInfo();
+check('old single-document draft + layout become tab 1', ti.names.length === 1 && /legacy_t/.test(ti.src) && (await posOf('legacy_t')) === '500px,300px', JSON.stringify({ ti, pos: await posOf('legacy_t') }));
+await page.evaluate(() => localStorage.clear());
+
 check('no page errors', pageErrors.length === 0, JSON.stringify(pageErrors));
 await browser.close();
 const failed = results.filter(r => !r.ok).length;

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Run the built app in self-test mode: open the reference example, measure the
-# render inside the real WebKit engine, snapshot it, Save As, and check it all.
+# render inside the real WebKit engine, snapshot it, then re-open / Save As / type /
+# new tab / Don't Save, and check it all.
 #   ./scripts/build_mac.sh && ./scripts/test_mac_app.sh
 # (a window appears for ~3 seconds and closes itself)
 set -euo pipefail
@@ -31,10 +32,14 @@ checks = [
   ('20 tables, 1 sticky, 4 group boxes',        (r.get('tables'), r.get('stickies'), r.get('groupBoxes')) == (20, 1, 4)),
   ('15 relationship + 16 lineage lines',        (r.get('refLines'), r.get('depLines')) == (15, 16)),
   ('rows line up with line endpoints (WebKit)', r.get('misaligned') == []),
-  ('title bar shows the file, not dirty',       r.get('windowTitle') == 'dbml_reference.dbml' and r.get('dirty') is False),
+  ('file opened in its own tab next to the example', r.get('tabNames') == ['Pipeline example', 'dbml_reference.dbml'] and r.get('activeTab') == 'dbml_reference.dbml'),
+  ('title bar shows the active tab, not dirty',  r.get('windowTitle') == 'dbml_reference.dbml' and r.get('dirty') is False),
+  ('opening the same file again reuses its tab', s.get('reopen', {}).get('count') == 2),
   ('Save As wrote an identical file',           s.get('saved') is True and open(f'{out}/saved copy.dbml', encoding='utf-8').read() == src),
-  ('title follows Save As, still clean',        s.get('windowTitle') == 'saved copy.dbml' and s.get('dirty') is False),
-  ('typing afterwards shows the unsaved dot',   s.get('dirtyAfterTyping') is True and s.get('editedDotShown') is True),
+  ('tab + title follow Save As, still clean',   s['afterSave']['windowTitle'] == 'saved copy.dbml' and 'saved copy.dbml' in s['afterSave']['names'] and s['afterSave']['dirtyDocs'] == 0),
+  ('typing afterwards shows the unsaved dot',   s['afterTyping']['anyDirty'] is True and s['afterTyping']['editedDotShown'] is True and s['afterTyping']['dirtyDocs'] == 1),
+  ('New tab: named after its Project, 2 unsaved', s['newTab']['count'] == 3 and s['newTab']['windowTitle'] == 'scratch_pad' and s['newTab']['dirtyDocs'] == 2),
+  ("Don't Save reverts the file tab, drops the new one", s['discarded']['count'] == 2 and s['discarded']['dirtyDocs'] == 0 and s['discarded']['anyDirty'] is False and s.get('revertedToDisk') is True),
   ('snapshot taken',                            os.path.getsize(f'{out}/report.json.png') > 50_000),
 ]
 fails = 0

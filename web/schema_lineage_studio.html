@@ -95,6 +95,69 @@ input.search::placeholder{color:var(--text-dim);}
 .vp-del:hover{color:#e0523f;}
 .vp-empty{font-size:11px;color:var(--text-dim);font-style:italic;padding:2px 2px 6px;}
 
+[hidden]{display:none!important;}
+.tabbar{
+  display:flex;align-items:flex-end;gap:6px;padding:6px 12px 0;background:var(--panel-2);
+  border-bottom:1px solid var(--border);min-height:40px;
+}
+.tab-list{display:flex;align-items:flex-end;gap:2px;overflow-x:auto;min-width:0;scrollbar-width:none;}
+.tab-list::-webkit-scrollbar{display:none;}
+.tab{
+  display:flex;align-items:center;flex-shrink:0;max-width:230px;border:1px solid transparent;border-bottom:none;
+  border-radius:8px 8px 0 0;position:relative;top:1px;
+}
+.tab:hover{background:color-mix(in srgb, var(--panel) 55%, transparent);}
+.tab.active{background:var(--panel);border-color:var(--border);}
+.tab-btn{
+  display:flex;align-items:center;min-width:0;border:none;background:none;cursor:pointer;padding:8px 4px 8px 12px;
+  font-family:var(--sans);font-size:12px;font-weight:600;color:var(--text-dim);
+}
+.tab.active .tab-btn{color:var(--text);}
+.tab-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tab.dirty .tab-name::after{content:' \25CF';color:var(--accent);}
+.tab-close{
+  width:20px;height:20px;margin-right:6px;flex-shrink:0;border:none;border-radius:5px;background:none;cursor:pointer;
+  color:var(--text-dim);font-size:14px;line-height:1;opacity:0;
+}
+.tab:hover .tab-close, .tab.active .tab-close, .tab-close:focus-visible{opacity:1;}
+.tab-close:hover{background:var(--panel-2);color:var(--text);}
+.tab-btn:focus-visible, .tab-close:focus-visible, .tab-add:focus-visible, .tab-import:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.tab-rename{
+  font-family:var(--sans);font-size:12px;font-weight:600;width:150px;margin:5px 6px 5px 8px;padding:2px 6px;
+  border:1px solid var(--accent);border-radius:5px;background:var(--panel);color:var(--text);
+}
+.tab-add{
+  width:26px;height:26px;margin-bottom:5px;flex-shrink:0;border:none;border-radius:6px;background:none;cursor:pointer;
+  color:var(--text-dim);font-size:17px;line-height:1;
+}
+.tab-add:hover{background:var(--panel);color:var(--text);}
+.tabbar-spacer{flex:1;}
+.tab-import{
+  display:inline-flex;align-items:center;gap:6px;margin-bottom:5px;flex-shrink:0;padding:5px 11px;border-radius:7px;
+  border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer;
+  font-family:var(--sans);font-size:12px;font-weight:600;
+}
+.tab-import:hover{border-color:var(--accent);color:var(--accent);}
+.modal-backdrop{position:fixed;inset:0;z-index:90;background:rgba(10,14,24,.38);display:flex;align-items:center;justify-content:center;padding:16px;}
+.modal{
+  width:min(420px, 100%);padding:18px 20px 16px;border-radius:12px;background:var(--panel);color:var(--text);
+  border:1px solid var(--border);box-shadow:0 20px 50px rgba(0,0,0,.3);font-family:var(--sans);
+}
+.modal h3{margin:0 0 6px;font-size:15px;line-height:1.35;}
+.modal p{margin:0 0 16px;font-size:13px;line-height:1.5;color:var(--text-dim);}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+.modal-actions button{
+  padding:7px 14px;border-radius:7px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);
+  font-family:var(--sans);font-size:12.5px;font-weight:600;cursor:pointer;
+}
+.modal-actions button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.modal-actions button.danger{background:#d9453a;border-color:#d9453a;color:#fff;}
+.modal-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.drop-overlay{
+  position:fixed;inset:10px;z-index:85;border:3px dashed var(--accent);border-radius:14px;pointer-events:none;
+  background:color-mix(in srgb, var(--accent) 10%, var(--bg));display:flex;align-items:center;justify-content:center;
+  font-family:var(--sans);font-size:15px;font-weight:700;color:var(--accent);
+}
 .main{flex:1;display:flex;min-height:0;}
 .editor-pane{
   width:38%;min-width:280px;max-width:640px;display:flex;flex-direction:column;
@@ -397,6 +460,14 @@ svg#edges{position:absolute;top:0;left:0;overflow:visible;pointer-events:none;}
     </div>
   </div>
 
+  <div class="tabbar">
+    <div class="tab-list" id="tabList" role="tablist" aria-label="Open DBML documents"></div>
+    <button class="tab-add" id="tabAdd" title="New tab" aria-label="New tab">+</button>
+    <span class="tabbar-spacer"></span>
+    <button class="tab-import" id="importBtn" title="Import .dbml files — each opens in a new tab (you can also drop files on the window)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10V2M5 5l3-3 3 3M2.5 10v2.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V10"/></svg><span>Import .dbml</span></button>
+    <input type="file" id="importInput" accept=".dbml,.txt,text/plain" multiple hidden>
+  </div>
+
   <div class="main">
     <div class="editor-pane" id="editorPane">
       <div class="editor-head">
@@ -441,6 +512,15 @@ svg#edges{position:absolute;top:0;left:0;overflow:visible;pointer-events:none;}
     </div>
   </div>
 </div>
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalBody">
+    <h3 id="modalTitle"></h3>
+    <p id="modalBody"></p>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
+<div class="drop-overlay" id="dropOverlay" hidden>Drop .dbml files to open each in a new tab</div>
 
 <script>
 (function(){
@@ -2452,6 +2532,7 @@ document.addEventListener('keydown', e => {
   if(e.ctrlKey || e.metaKey || e.altKey) return;
   const t = e.target;
   if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  if(!document.getElementById('modal').hidden) return;
   e.preventDefault();
   setHighlightAll(!highlightAll);
 });
@@ -2603,9 +2684,10 @@ function renderViewsPanel(){
 const srcEl = document.getElementById('src');
 let debounceTimer;
 function persistState(){
+  syncActiveFromEditor();
   try{
-    localStorage.setItem('lineage-src', srcEl.value);
-    localStorage.setItem('lineage-ui', JSON.stringify({ hidden:[...hiddenGroups], hiddenSchemas:[...hiddenSchemas], hiddenTables:[...hiddenTables], collapsed:[...collapsedGroups], groupBy:treeGroupBy, groupColors:groupColorOverrides, manualPos }));
+    localStorage.setItem('lineage-tabs', JSON.stringify({ active: activeTab && activeTab.id, tabs }));
+    localStorage.setItem('lineage-groupby', treeGroupBy);
   }catch(_){}
 }
 function rebuild(){
@@ -2626,7 +2708,7 @@ function rebuild(){
       statusEl.classList.remove('err');
     }
     persistState();
-    reportDirty();
+    refreshTabChrome();
   }catch(err){
     statusEl.textContent = 'parse error: ' + err.message;
     statusEl.classList.add('err');
@@ -2637,59 +2719,301 @@ srcEl.addEventListener('input', () => {
   debounceTimer = setTimeout(rebuild, 220);
 });
 
+// ---------- Tabs: each tab = one DBML document + its own diagram state ----------
+// Per tab: text, dragged positions, hidden / collapsed groups, group colors, zoom + pan.
+// Global (view preferences): detail level, highlight-all, ERD/Lineage mode, panels, Views.
+const nativeApp = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sls;
+const tabListEl = document.getElementById('tabList');
+let tabs = [];
+let activeTab = null;
+let tabSeq = 0;
+
+function newTabObj(src, name, path){
+  return { id: 't' + Date.now().toString(36) + (tabSeq++), name: name || null, src: src || '', savedSrc: null, path: path || null, ui: {} };
+}
+// Untitled tabs are named after their DBML Project, if it has one.
+function tabLabel(t){
+  if(t.name) return t.name;
+  const m = t.src.match(/^\s*Project\s+("?)([^\s"{]+)\1/m);
+  return m ? m[2] : 'Untitled';
+}
+// Unsaved = the app's notion (differs from the file on disk). In a browser every
+// tab is kept in localStorage, so there's nothing to lose and no dot.
+function isDirty(t){
+  if(!nativeApp || !t) return false;
+  return t.savedSrc === null ? t.src.trim() !== '' : t.src !== t.savedSrc;
+}
+function snapshotUi(){
+  return { manualPos, hidden:[...hiddenGroups], hiddenSchemas:[...hiddenSchemas], hiddenTables:[...hiddenTables],
+           collapsed:[...collapsedGroups], groupColors: groupColorOverrides, treeCollapsed:[...treeCollapsed],
+           scale, panX, panY, scroll: srcEl.scrollTop };
+}
+function applyUi(ui){
+  ui = ui || {};
+  manualPos = ui.manualPos || {};
+  hiddenGroups = new Set(ui.hidden || []); hiddenSchemas = new Set(ui.hiddenSchemas || []);
+  hiddenTables = new Set(ui.hiddenTables || []); collapsedGroups = new Set(ui.collapsed || []);
+  groupColorOverrides = ui.groupColors || {}; treeCollapsed = new Set(ui.treeCollapsed || []);
+  scale = ui.scale || 1; panX = ui.panX ?? 60; panY = ui.panY ?? 30;
+}
+function syncActiveFromEditor(){
+  if(!activeTab) return;
+  activeTab.src = srcEl.value;
+  activeTab.ui = snapshotUi();
+}
+function showTab(t){
+  activeTab = t;
+  srcEl.value = t.src;
+  applyUi(t.ui);
+  traceState = null; tracebar.classList.remove('show');
+  if(!colorPopEl.hidden) closeColorPop();
+  applyTransform();
+  rebuild();
+  srcEl.scrollTop = (t.ui && t.ui.scroll) || 0;
+  renderTabs();
+}
+function switchTab(id){
+  const t = tabs.find(x => x.id === id);
+  if(!t || t === activeTab) return;
+  syncActiveFromEditor();
+  showTab(t);
+  persistState();
+}
+function addTab(src, name, path, clean){
+  syncActiveFromEditor();
+  const t = newTabObj(src, name, path);
+  if(clean) t.savedSrc = t.src;
+  const i = activeTab ? tabs.indexOf(activeTab) + 1 : tabs.length;
+  tabs.splice(i, 0, t);
+  showTab(t);
+  persistState();
+  return t;
+}
+function removeTab(id){
+  const i = tabs.findIndex(x => x.id === id);
+  if(i < 0) return;
+  const wasActive = tabs[i] === activeTab;
+  tabs.splice(i, 1);
+  if(!tabs.length){ const t = newTabObj('', null, null); t.savedSrc = ''; tabs.push(t); }
+  if(wasActive){ activeTab = null; showTab(tabs[Math.min(i, tabs.length - 1)]); }
+  else renderTabs();
+  persistState();
+}
+async function closeTab(id){
+  const t = tabs.find(x => x.id === id);
+  if(!t) return;
+  if(t === activeTab) syncActiveFromEditor();
+  if(nativeApp){
+    if(isDirty(t)){
+      const v = await askDialog(`Save changes to “${tabLabel(t)}”?`, "Your changes will be lost if you don't save them.",
+        [{ label: 'Save', value: 'save', primary: true }, { label: "Don't Save", value: 'discard' }, { label: 'Cancel', value: 'cancel' }]);
+      if(v === 'cancel') return;
+      if(v === 'save'){ nativeApp.postMessage({ type: 'saveTab', id, closeAfter: true }); return; }  // the app closes it once saved
+    }
+  } else if(t.src.trim()){
+    const v = await askDialog(`Close “${tabLabel(t)}”?`, "Its DBML is removed from this browser. Copy it out first if you want to keep it.",
+      [{ label: 'Close tab', value: 'close', danger: true }, { label: 'Cancel', value: 'cancel' }]);
+    if(v !== 'close') return;
+  }
+  removeTab(id);
+}
+function renderTabs(){
+  if(tabListEl.querySelector('.tab-rename')) return;   // don't clobber a rename in progress
+  tabListEl.innerHTML = tabs.map(t => {
+    const on = t === activeTab, label = esc(tabLabel(t));
+    return `<div class="tab${on ? ' active' : ''}${isDirty(t) ? ' dirty' : ''}" data-id="${t.id}">
+      <button class="tab-btn" role="tab" aria-selected="${on}" tabindex="${on ? 0 : -1}" data-id="${t.id}" title="${esc(t.path || tabLabel(t))}${t.path ? '' : ' — double-click to rename'}"><span class="tab-name">${label}</span></button>
+      <button class="tab-close" data-id="${t.id}" title="Close tab" aria-label="Close ${label}">×</button>
+    </div>`;
+  }).join('');
+  tabListEl.querySelectorAll('.tab-btn').forEach(b => {
+    b.addEventListener('click', () => switchTab(b.dataset.id));
+    b.addEventListener('dblclick', () => startRename(b.dataset.id));
+    b.addEventListener('keydown', e => {
+      if(e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const btns = [...tabListEl.querySelectorAll('.tab-btn')], i = btns.indexOf(b);
+      const next = btns[(i + (e.key === 'ArrowRight' ? 1 : btns.length - 1)) % btns.length];
+      next.focus(); switchTab(next.dataset.id);
+      tabListEl.querySelector(`.tab-btn[data-id="${next.dataset.id}"]`).focus();
+    });
+  });
+  tabListEl.querySelectorAll('.tab').forEach(el => el.addEventListener('auxclick', e => { if(e.button === 1) closeTab(el.dataset.id); }));
+  tabListEl.querySelectorAll('.tab-close').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); closeTab(b.dataset.id); }));
+  const act = tabListEl.querySelector('.tab.active');
+  if(act) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+// after every parse: keep the active tab's label (Project name) and unsaved dot current
+function refreshTabChrome(){
+  if(!activeTab) return;
+  activeTab.src = srcEl.value;
+  renderTabs();
+  reportState();
+}
+function startRename(id){
+  const t = tabs.find(x => x.id === id);
+  if(!t || t.path) return;   // file-backed tabs are named after their file
+  const tabEl = tabListEl.querySelector(`.tab[data-id="${id}"]`);
+  const input = document.createElement('input');
+  input.className = 'tab-rename'; input.value = tabLabel(t); input.setAttribute('aria-label', 'Tab name');
+  tabEl.replaceChildren(input);
+  input.focus(); input.select();
+  let done = false;
+  const finish = commit => {
+    if(done) return; done = true;
+    if(commit){ const v = input.value.trim(); t.name = v || null; }
+    input.remove();
+    renderTabs(); persistState(); reportState();
+  };
+  input.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); finish(true); } if(e.key === 'Escape'){ e.preventDefault(); finish(false); } });
+  input.addEventListener('blur', () => finish(true));
+}
+
+// ---------- small in-page dialog (the artifact frame blocks confirm()) ----------
+const modalEl = document.getElementById('modal');
+function askDialog(title, body, buttons){
+  return new Promise(resolve => {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').textContent = body;
+    const actions = document.getElementById('modalActions');
+    actions.innerHTML = buttons.map((b, i) => `<button data-i="${i}" class="${b.primary ? 'primary' : ''}${b.danger ? 'danger' : ''}">${esc(b.label)}</button>`).join('');
+    const prevFocus = document.activeElement;
+    const close = v => { modalEl.hidden = true; document.removeEventListener('keydown', onKey, true); if(prevFocus && prevFocus.focus) prevFocus.focus(); resolve(v); };
+    const onKey = e => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close('cancel'); } };
+    actions.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => close(buttons[+btn.dataset.i].value)));
+    modalEl.onclick = e => { if(e.target === modalEl) close('cancel'); };
+    document.addEventListener('keydown', onKey, true);
+    modalEl.hidden = false;
+    (actions.querySelector('.primary, .danger') || actions.querySelector('button')).focus();
+  });
+}
+
+// ---------- import: button, file picker, drag & drop — each file opens in a new tab ----------
+const importInput = document.getElementById('importInput');
+async function importFiles(fileList){
+  for(const f of [...fileList]){
+    const text = await f.text();
+    addTab(text, f.name, null, !nativeApp);   // in the app a dropped file has no path yet: Save asks where
+  }
+}
+document.getElementById('importBtn').addEventListener('click', () => {
+  if(nativeApp) nativeApp.postMessage({ type: 'open' });   // native picker keeps the file's path, so ⌘S writes back to it
+  else importInput.click();
+});
+importInput.addEventListener('change', () => { importFiles(importInput.files); importInput.value = ''; });
+const dropOverlay = document.getElementById('dropOverlay');
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+document.addEventListener('dragenter', e => { if(!hasFiles(e)) return; e.preventDefault(); dragDepth++; dropOverlay.hidden = false; });
+document.addEventListener('dragover', e => { if(hasFiles(e)) e.preventDefault(); });
+document.addEventListener('dragleave', e => { if(!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if(!dragDepth) dropOverlay.hidden = true; });
+document.addEventListener('drop', e => {
+  if(!hasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; dropOverlay.hidden = true;
+  importFiles(e.dataTransfer.files);
+});
+
+document.getElementById('tabAdd').addEventListener('click', () => addTab('', null, null, true));
+
+// examples open in their own tab (or jump to it if it's already open and unchanged)
 document.querySelectorAll('.examples-row button').forEach(btn => {
   btn.addEventListener('click', () => {
-    srcEl.value = btn.dataset.ex === 'pipeline' ? PIPELINE_EXAMPLE : MINIMAL_EXAMPLE;
-    manualPos = {}; hiddenGroups = new Set(); hiddenTables = new Set(); collapsedGroups = new Set(); groupColorOverrides = {};
-    rebuild();
+    const pipeline = btn.dataset.ex === 'pipeline';
+    const src = pipeline ? PIPELINE_EXAMPLE : MINIMAL_EXAMPLE;
+    syncActiveFromEditor();
+    const existing = tabs.find(t => t.src === src);
+    if(existing) switchTab(existing.id);
+    else addTab(src, pipeline ? 'Pipeline example' : 'Minimal example', null, true);
   });
 });
 
 // ---------- boot ----------
-let initialSrc = PIPELINE_EXAMPLE;
-try{
-  const savedSrc = localStorage.getItem('lineage-src');
-  if(savedSrc) initialSrc = savedSrc;
-  const savedUi = JSON.parse(localStorage.getItem('lineage-ui') || 'null');
-  if(savedUi){
-    hiddenGroups = new Set(savedUi.hidden || []);
-    hiddenSchemas = new Set(savedUi.hiddenSchemas || []);
-    hiddenTables = new Set(savedUi.hiddenTables || []);
-    collapsedGroups = new Set(savedUi.collapsed || []);
-    treeGroupBy = savedUi.groupBy === 'schema' ? 'schema' : 'group';    groupColorOverrides = savedUi.groupColors || {};
-    manualPos = savedUi.manualPos || {};
-  }
-}catch(_){}
+try{ const gb = localStorage.getItem('lineage-groupby'); if(gb) treeGroupBy = gb === 'schema' ? 'schema' : 'group'; }catch(_){}
+function loadTabs(){
+  try{
+    const saved = JSON.parse(localStorage.getItem('lineage-tabs') || 'null');
+    if(saved && Array.isArray(saved.tabs) && saved.tabs.length){ tabs = saved.tabs; return saved.active; }
+  }catch(_){}
+  // first run — or the single-document version's draft + layout, which becomes tab 1
+  let src = PIPELINE_EXAMPLE, name = 'Pipeline example', ui = {};
+  try{
+    const old = localStorage.getItem('lineage-src');
+    if(old !== null){
+      src = old; name = null;
+      const u = JSON.parse(localStorage.getItem('lineage-ui') || 'null');
+      if(u){
+        ui = { manualPos: u.manualPos, hidden: u.hidden, hiddenSchemas: u.hiddenSchemas, hiddenTables: u.hiddenTables, collapsed: u.collapsed, groupColors: u.groupColors };
+        if(u.groupBy) treeGroupBy = u.groupBy === 'schema' ? 'schema' : 'group';
+      }
+    }
+  }catch(_){}
+  const t = newTabObj(src, name, null);
+  t.savedSrc = src; t.ui = ui;
+  tabs = [t];
+  return t.id;
+}
+const firstId = loadTabs();
 groupBySelect.value = treeGroupBy;
-srcEl.value = initialSrc;
 try{ if(localStorage.getItem('lineage-editor-collapsed') === '1') setEditorCollapsed(true); }catch(_){}
 try{ if(localStorage.getItem('lineage-tree-collapsed') === '1') setTreeCollapsed2(true); }catch(_){}
 try{ const dl = localStorage.getItem('lineage-detail'); if(dl) setDetail(dl, false); }catch(_){}
 try{ if(localStorage.getItem('lineage-highlight-all') === '1'){ highlightAll = true; const fb = document.getElementById('flowAllBtn'); fb.classList.add('on'); fb.setAttribute('aria-pressed', 'true'); } }catch(_){}
+
 // ---------- Native Mac app bridge (inactive in a browser) ----------
-// The Mac app loads/saves .dbml files through window.SLS and shows the
-// "unsaved changes" dot from the 'dirty' messages below.
-const nativeApp = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sls;
-let savedText = srcEl.value;
-function reportDirty(){
-  if(nativeApp) nativeApp.postMessage({ type: 'dirty', dirty: srcEl.value !== savedText });
+// The app keeps no document state of its own: files live in tabs here, and the
+// app reads / writes them through window.SLS. 'state' messages drive its title bar.
+function docInfo(t){ return t ? { id: t.id, text: t.src, path: t.path, name: tabLabel(t) } : null; }
+function reportState(){
+  if(!nativeApp || !activeTab) return;
+  nativeApp.postMessage({ type: 'state', name: tabLabel(activeTab), path: activeTab.path, dirty: isDirty(activeTab), dirtyCount: tabs.filter(isDirty).length });
 }
 window.SLS = {
-  getSource: () => srcEl.value,
-  // a newly opened file starts with a fresh layout (positions from another file don't apply)
-  loadSource(text){
-    srcEl.value = text;
-    savedText = text;
-    manualPos = {}; hiddenGroups = new Set(); hiddenSchemas = new Set(); hiddenTables = new Set(); collapsedGroups = new Set();
-    scale = 1; panX = 60; panY = 30; applyTransform();
-    rebuild();
+  // open a file: reuse its tab if it's already open, or fill an empty untitled tab
+  openDocument(text, path, name){
+    syncActiveFromEditor();
+    const existing = path && tabs.find(t => t.path === path);
+    if(existing){
+      if(!isDirty(existing)){ existing.src = text; existing.savedSrc = text; }
+      if(existing === activeTab){ showTab(existing); } else switchTab(existing.id);
+      persistState();
+      return existing.id;
+    }
+    if(activeTab && !activeTab.path && !activeTab.src.trim()){
+      Object.assign(activeTab, { src: text, savedSrc: text, path, name, ui: {} });
+      showTab(activeTab); persistState();
+      return activeTab.id;
+    }
+    return addTab(text, name, path, true).id;
   },
-  markSaved(){ savedText = srcEl.value; reportDirty(); },
+  newDocument(){ addTab('', null, null, true); },
+  activeDoc(){ syncActiveFromEditor(); return docInfo(activeTab); },
+  doc(id){ syncActiveFromEditor(); return docInfo(tabs.find(t => t.id === id)); },
+  dirtyDocs(){ syncActiveFromEditor(); return tabs.filter(isDirty).map(docInfo); },
+  markSaved(id, path, name, text){   // text = what was written; later typing stays unsaved
+    const t = tabs.find(x => x.id === id);
+    if(!t) return;
+    syncActiveFromEditor();
+    t.path = path; t.name = name; t.savedSrc = text ?? t.src;
+    renderTabs(); persistState(); reportState();
+  },
+  closeTab(id){ removeTab(id); },
+  showDoc(id){ switchTab(id); },
+  // "Don't Save" on quit: file tabs go back to what's on disk, unsaved new tabs are dropped
+  discardUnsaved(){
+    syncActiveFromEditor();
+    tabs.filter(isDirty).forEach(t => { if(t.path) t.src = t.savedSrc; else removeTab(t.id); });
+    if(activeTab) showTab(activeTab);
+    persistState();
+  },
+  closeActiveTab(){ if(activeTab) closeTab(activeTab.id); },
+  cycleTab(step){ const i = tabs.indexOf(activeTab); switchTab(tabs[(i + step + tabs.length) % tabs.length].id); },
+  tabCount: () => tabs.length,
+  getSource: () => srcEl.value,
 };
 
-rebuild();
-applyTransform();
-if(nativeApp){ document.documentElement.classList.add('in-mac-app'); nativeApp.postMessage({ type: 'ready' }); }
+activeTab = null;
+showTab(tabs.find(t => t.id === firstId) || tabs[0]);
+persistState();
+if(nativeApp){ document.documentElement.classList.add('in-mac-app'); nativeApp.postMessage({ type: 'ready' }); reportState(); }
 
 })();
 </script>
