@@ -1,0 +1,500 @@
+// =============================================================================
+// DBML reference example — ERD + data lineage, every syntax feature in one file
+// Valid for dbdiagram.io (checked with @dbml/core 10.2) and Schema Lineage Studio.
+//
+// Map of what's where (search for the tag):
+//   [project]   Project block                     [enum]      enums, quoted values, value notes
+//   [partial]   TablePartial + ~injection         [table]     alias, header color, settings, custom props
+//   [column]    every column setting              [note]      all note forms, multi-line, escaping
+//   [index]     every index form                  [check]     column + table checks
+//   [records]   sample data, both forms           [metadata]  Metadata block
+//   [ref]       every relationship form           [group]     TableGroup forms
+//   [sticky]    sticky notes                      [dep]       every data-lineage form
+// =============================================================================
+
+/* Block comments work too.
+   Everything between slash-star and star-slash is ignored. */
+
+// [project] ------------------------------------------------------------------
+Project ecommerce_analytics {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # E-commerce analytics warehouse
+    raw (landed as-is) -> staging (cleaned) -> marts (modelled for BI).
+  '''
+}
+
+// [enum] ---------------------------------------------------------------------
+// An enum is a reusable value list; use it as a column type (schema-qualified).
+enum raw.stripe_charge_status {
+  succeeded
+  pending
+  failed [note: 'Card declined or the charge errored']
+}
+
+enum marts.order_state {
+  complete [note: 'Paid and not refunded']
+  pending
+  cancelled
+}
+
+// values with spaces or symbols go in double quotes
+enum marts.plan_tier {
+  "free"
+  "pro"
+  "enterprise (annual)"
+}
+
+// [partial] ------------------------------------------------------------------
+// A TablePartial is a reusable set of columns; inject it with ~name.
+// If a table defines the same column itself, the table's own definition wins.
+TablePartial audit_columns {
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [null]
+}
+
+TablePartial soft_delete {
+  deleted_at timestamp [null, note: 'NULL = live row; set = soft-deleted']
+}
+
+// [table] reference data in the default schema (no prefix = public) ------------
+// headercolor sets this table's header color; [records] ships sample rows.
+Table countries [headercolor: #16a085, note: 'ISO-3166 reference list, loaded once.'] {
+  code char(2) [pk, note: 'ISO-3166 alpha-2, e.g. US']
+  name varchar(100) [not null, unique]
+  continent varchar(20)
+}
+
+// [records] top-level form: records <table>(<columns>) { rows }
+records countries(code, name, continent) {
+  'US', 'United States', 'North America'
+  'DE', 'Germany', 'Europe'
+  'JP', 'Japan', 'Asia'
+}
+
+// =============================================================================
+// raw — landed straight from source systems, no transforms
+// =============================================================================
+
+// [table] "as" gives a short alias you can use in Ref / Dep lines
+// [column] every setting: pk, not null, null, unique, default (number, string,
+//          expression, boolean), increment, check, note, custom properties
+Table raw.stripe_charges as charges [note: 'Raw Stripe charges, loaded hourly via webhook.'] {
+  charge_id varchar(64) [pk, note: 'Stripe ch_... id, stable across retries.']
+  order_ref varchar(64) [not null, note: 'Our order_id, sent to Stripe as metadata.']
+  amount_cents integer [not null, check: `amount_cents >= 0`, note: 'In cents, exactly as Stripe sends it.']
+  refunded_cents integer [not null, default: 0]
+  currency char(3) [not null, default: 'usd']
+  status raw.stripe_charge_status [not null]
+  livemode boolean [default: true]
+  created_at timestamp
+
+  // [index] single column, and composite with a name
+  indexes {
+    order_ref
+    (status, created_at) [name: 'ix_charges_status_time']
+  }
+}
+
+// [partial] ~audit_columns injects created_at / updated_at here
+Table raw.app_orders as ao {
+  id integer [pk]
+  customer_id integer [not null]
+  product_id integer [not null]
+  status varchar(20)
+  placed_at timestamp
+  ~audit_columns
+}
+
+Table raw.app_customers {
+  id integer [pk]
+  email varchar(255)
+  full_name varchar(200)
+  country_code char(2)
+  signup_at timestamp
+  ~audit_columns
+  ~soft_delete
+}
+
+// [column] array type and a column type with arguments
+Table raw.app_products {
+  id integer [pk]
+  sku varchar(40) [unique]
+  name varchar(200)
+  category varchar(50)
+  tags varchar[]
+  list_price_cents integer
+}
+
+// [column] a quoted column name (spaces allowed inside double quotes)
+Table raw.web_events {
+  event_id varchar(64) [pk]
+  session_id varchar(64) [not null]
+  customer_id integer [null, note: 'NULL for anonymous visitors']
+  event_type varchar(40)
+  "user agent" text
+  occurred_at timestamp
+}
+
+// =============================================================================
+// staging — cleaned and typed, one row per source record
+// =============================================================================
+
+// [dep] inline column-level lineage: dep: <- upstream.column
+Table staging.stg_payments {
+  order_id integer [pk]
+  gross_amount decimal(12,2) [dep: <- raw.stripe_charges.amount_cents, note: 'Divided by 100. Stripe stores cents.']
+  refund_amount decimal(12,2) [dep: <- raw.stripe_charges.refunded_cents, note: 'Divided by 100. 0 when nothing was refunded.']
+  currency char(3) [dep: <- raw.stripe_charges.currency]
+}
+
+// [dep] table-level inline lineage in the table settings: [dep: <- upstream_table]
+// [note] Note: '...' inside the table body
+Table staging.stg_orders [dep: <- raw.app_orders] {
+  order_id integer [pk]
+  customer_id integer [not null]
+  product_id integer [not null]
+  status varchar(20)
+  placed_at timestamp
+
+  Note: 'Cleaned orders. Excludes test/internal accounts.'
+}
+
+// [note] escaping a single quote inside a string: \'
+// [table] custom properties on a column: masking: "partial"
+Table staging.stg_customers {
+  customer_id integer [pk]
+  email varchar(255) [unique, masking: "partial", note: 'Lower-cased and trimmed — the customer\'s login.']
+  full_name varchar(200)
+  country_code char(2)
+  signup_date date
+}
+
+// [dep] inline, downstream direction: dep: -> downstream.column
+Table staging.stg_products {
+  product_id integer [pk]
+  sku varchar(40) [unique]
+  name varchar(200)
+  category varchar(50) [dep: -> marts.dim_products.category]
+  list_price decimal(12,2)
+}
+
+// [column] a type name with a space goes in double quotes
+Table staging.stg_sessions {
+  session_id varchar(64) [pk]
+  customer_id integer [ref: >? staging.stg_customers.customer_id]
+  started_at timestamp
+  ended_at timestamp
+  event_count integer
+  engagement_score "double precision"
+}
+
+// [metadata] attach properties to an already-defined table
+Metadata Table staging.stg_customers {
+  owner: 'crm-team'
+  contains_pii: 'true'
+}
+
+// =============================================================================
+// marts — the model BI tools query
+// =============================================================================
+
+// [enum] a column typed with an enum; [table] custom property owner: "..."
+// [note] Note { '''...''' } block form, multi-line
+Table marts.dim_customers [owner: "data-platform"] {
+  customer_id integer [pk]
+  email varchar(255)
+  full_name varchar(200)
+  country_code char(2)
+  plan marts.plan_tier [default: 'free']
+  signup_date date
+
+  Note {
+    '''
+    One row per customer, SCD type 1 (overwritten, no history).
+    Joins to countries on country_code.
+    '''
+  }
+}
+
+Table marts.dim_products {
+  product_id integer [pk]
+  sku varchar(40)
+  name varchar(200)
+  category varchar(50)
+}
+
+// [index] pk composite key via indexes
+Table marts.dim_product_prices {
+  product_id integer
+  currency char(3)
+  list_price decimal(12,2) [not null]
+
+  indexes {
+    (product_id, currency) [pk]
+  }
+}
+
+// [column] increment; [records] in-table form
+Table marts.dim_promotions {
+  promo_id integer [pk, increment]
+  code varchar(30) [unique, not null]
+  pct_off decimal(5,2) [check: `pct_off > 0 and pct_off <= 100`]
+
+  records (promo_id, code, pct_off) {
+    1, 'WELCOME10', 10.0
+    2, 'VIP25', 25.0
+  }
+}
+
+// [check] table-level checks block; [index] hash, expression, index note
+// [column] multi-line column note
+Table marts.fct_orders [note: 'One row per order. The order-facts table everything downstream reads.'] {
+  order_id integer [pk]
+  customer_id integer [not null]
+  product_id integer [not null]
+  net_amount decimal(12,2) [not null, note: 'gross - refund. Finance reconciles this to Stripe payouts monthly.']
+  state marts.order_state [not null, note: '''
+    complete  = paid, not refunded
+    pending   = awaiting capture
+    cancelled = voided before capture
+  ''']
+  placed_at timestamp
+
+  indexes {
+    (customer_id, placed_at) [name: 'ix_orders_customer_time', note: 'Customer order-history lookups']
+    state [type: hash]
+    (`date_trunc('day', placed_at)`) [name: 'ix_orders_day']
+  }
+
+  checks {
+    `net_amount >= 0` [name: 'chk_net_amount_nonneg']
+  }
+}
+
+// [index] unique composite
+Table marts.fct_order_items {
+  order_id integer [not null]
+  line_no smallint [not null]
+  product_id integer [not null]
+  currency char(3) [not null]
+  quantity integer [not null, default: 1]
+  unit_price decimal(12,2)
+
+  indexes {
+    (order_id, line_no) [pk]
+    (order_id, product_id) [unique]
+  }
+}
+
+Table marts.fct_sessions {
+  session_id varchar(64) [pk]
+  customer_id integer
+  session_date date
+  duration_seconds integer
+}
+
+Table marts.mart_customer_ltv {
+  customer_id integer [pk]
+  lifetime_orders integer [not null, default: 0]
+  lifetime_revenue decimal(12,2) [note: 'Sum of net_amount over complete orders only.']
+  first_session_date date [note: 'NULL for customers who ordered without a tracked session.']
+}
+
+Table marts.mart_revenue_daily [note: 'Daily revenue for the finance dashboard. Timezone = UTC.'] {
+  day date [pk, note: 'UTC calendar day.']
+  revenue decimal(12,2) [note: 'The number on the finance dashboard headline.']
+  order_count integer [not null]
+}
+
+// =============================================================================
+// [ref] relationships. Operator = cardinality:
+//   >  many-to-one   <  one-to-many   -  one-to-one   <>  many-to-many
+//   add ? on a side to make it optional (zero allowed): >?  ?>  -?  ?<>
+// (inline refs: see staging.stg_sessions.customer_id above)
+// =============================================================================
+
+// short form, referring to a table by its alias (ao = raw.app_orders)
+Ref: ao.customer_id > raw.app_customers.id
+
+// short form with actions and a line color
+Ref: marts.fct_orders.customer_id > marts.dim_customers.customer_id [delete: restrict, update: cascade, color: #c0392b]
+
+// named short form, one-to-many written from the "one" side
+Ref fk_orders_product: marts.dim_products.product_id < marts.fct_orders.product_id
+
+// long form: a (named) block — holds exactly ONE relationship, settings after it
+Ref order_items_order {
+  marts.fct_order_items.order_id > marts.fct_orders.order_id [delete: cascade]
+}
+
+Ref: marts.fct_order_items.product_id > marts.dim_products.product_id
+
+// composite foreign key: (col, col) > (col, col)
+Ref: marts.fct_order_items.(product_id, currency) > marts.dim_product_prices.(product_id, currency)
+
+// cross-schema ref into the default schema, optional on the countries side
+Ref: marts.dim_customers.country_code >? countries.code
+
+// one-to-one: exactly one LTV row per customer
+Ref: marts.mart_customer_ltv.customer_id - marts.dim_customers.customer_id
+
+// many-to-many: dbdiagram draws it directly (a junction table is implied)
+Ref: marts.dim_promotions.promo_id <> marts.dim_products.product_id
+
+// optional: anonymous sessions have no customer
+Ref: marts.fct_sessions.customer_id >? marts.dim_customers.customer_id
+
+// staging relationships
+Ref: staging.stg_orders.customer_id > staging.stg_customers.customer_id
+Ref: staging.stg_products.product_id < staging.stg_orders.product_id
+
+// [inactive] keep a documented-but-not-enforced relationship on the diagram
+Ref: raw.web_events.customer_id > raw.app_customers.id [inactive]
+
+// =============================================================================
+// [group] TableGroup: define the group, then list its tables
+// =============================================================================
+
+// quoted name, color and note in settings
+TableGroup "Source Systems" [color: #e0912f, note: 'Landed as-is from Stripe, the app DB and clickstream.'] {
+  raw.stripe_charges
+  raw.app_orders
+  raw.app_customers
+  raw.app_products
+  raw.web_events
+}
+
+// Note: '''...''' inside the group block
+TableGroup "Staging" [color: #3a6df0] {
+  staging.stg_payments
+  staging.stg_orders
+  staging.stg_customers
+  staging.stg_products
+  staging.stg_sessions
+
+  Note: '''
+  Cleaned and typed, one row per source record. No joins, no aggregation.
+  '''
+}
+
+// unquoted group name
+TableGroup core_marts [color: #d1477a, note: 'Star schema: facts + dimensions.'] {
+  marts.dim_customers
+  marts.dim_products
+  marts.dim_product_prices
+  marts.dim_promotions
+  marts.fct_orders
+  marts.fct_order_items
+}
+
+// same "marts" schema, different group: schema and group are independent
+TableGroup "Marketing Marts" [color: #1f9d6b] {
+  marts.fct_sessions
+  marts.mart_customer_ltv
+  marts.mart_revenue_daily
+}
+
+// [sticky] free-floating notes on the canvas
+Note warehouse_conventions [color: #F4D03F] {
+  '''
+  Conventions
+  - raw.* is append-only
+  - money is decimal(12,2) from staging onward
+  - timestamps are UTC
+  '''
+}
+
+// =============================================================================
+// [dep] data lineage. Arrows point upstream -> downstream (<- also works).
+// Rules: every edge in one Dep block must feed the same downstream table and
+// be the same level (all table-level or all column-level); no edge repeats.
+// =============================================================================
+
+// short form, table-level
+Dep: raw.app_products -> staging.stg_products
+
+// short form written with <- (downstream first)
+Dep: staging.stg_customers <- raw.app_customers
+
+// short form, column-level
+Dep: staging.stg_products.list_price -> marts.dim_product_prices.list_price
+
+// short form, mixed level (table -> column) with a note
+Dep: raw.web_events -> staging.stg_sessions.event_count [note: 'COUNT(*) of events per session']
+
+// short form with a color
+Dep: staging.stg_orders -> marts.fct_order_items [color: #8e44ad]
+
+// named block with settings: color, note, materialized, owner, custom key, query
+Dep order_facts [color: #d1477a] {
+  staging.stg_orders.order_id      -> marts.fct_orders.order_id
+  staging.stg_orders.customer_id   -> marts.fct_orders.customer_id
+  staging.stg_orders.product_id    -> marts.fct_orders.product_id
+  staging.stg_orders.placed_at     -> marts.fct_orders.placed_at
+  staging.stg_orders.status        -> marts.fct_orders.state
+  staging.stg_payments.gross_amount  -> marts.fct_orders.net_amount
+  staging.stg_payments.refund_amount -> marts.fct_orders.net_amount
+
+  note: 'Renames status -> state; net_amount = gross - refund, paid orders only.'
+  materialized: incremental
+  owner: 'data-platform'
+  sla: 'daily 06:00 UTC'
+  query: '''
+    SELECT o.order_id, o.customer_id, o.product_id, o.placed_at,
+           CASE WHEN o.status = 'paid' THEN 'complete' ELSE o.status END AS state,
+           p.gross_amount - p.refund_amount AS net_amount
+    FROM staging.stg_orders o
+    JOIN staging.stg_payments p ON p.order_id = o.order_id
+  '''
+}
+
+// unnamed block, SQL written inside the note as a fenced block
+Dep {
+  staging.stg_customers.customer_id  -> marts.dim_customers.customer_id
+  staging.stg_customers.email        -> marts.dim_customers.email
+  staging.stg_customers.full_name    -> marts.dim_customers.full_name
+  staging.stg_customers.country_code -> marts.dim_customers.country_code
+  staging.stg_customers.signup_date  -> marts.dim_customers.signup_date
+
+  note: '''
+  Straight passthrough, overwritten in place.
+
+  ```sql
+  SELECT customer_id, email, full_name, country_code, signup_date
+  FROM staging.stg_customers
+  ```
+  '''
+}
+
+// table-level block: several upstream tables feed one downstream table
+Dep sessions_build {
+  staging.stg_sessions  -> marts.fct_sessions
+  staging.stg_customers -> marts.fct_sessions
+  note: 'Sessions enriched with customer attributes.'
+}
+
+Dep: staging.stg_products.product_id -> marts.dim_products.product_id
+
+Dep revenue_daily {
+  marts.fct_orders.placed_at  -> marts.mart_revenue_daily.day
+  marts.fct_orders.net_amount -> marts.mart_revenue_daily.revenue
+  marts.fct_orders.order_id   -> marts.mart_revenue_daily.order_count
+  note: '''
+  One row per UTC day.
+
+  ```sql
+  SELECT placed_at::date AS day, SUM(net_amount) AS revenue, COUNT(*) AS order_count
+  FROM marts.fct_orders
+  WHERE state = 'complete'
+  GROUP BY 1
+  ```
+  '''
+}
+
+Dep customer_ltv {
+  marts.fct_orders.net_amount     -> marts.mart_customer_ltv.lifetime_revenue
+  marts.fct_orders.order_id       -> marts.mart_customer_ltv.lifetime_orders
+  marts.fct_sessions.session_date -> marts.mart_customer_ltv.first_session_date
+  note: 'Lifetime rollups per customer, rebuilt nightly.'
+}

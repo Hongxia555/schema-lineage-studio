@@ -1,0 +1,5 @@
+build/
+dist/
+tests/_test_page.html
+node_modules/
+.DS_Store

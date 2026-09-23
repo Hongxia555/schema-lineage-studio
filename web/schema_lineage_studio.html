@@ -1,0 +1,2695 @@
+<title>Schema Lineage Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --panel-2:#eef0f4; --border:#dde1e8;
+  --text:#1a1d24; --text-dim:#5b6270; --accent:#3a6df0; --accent-dim:#c9d8ff;
+  --mono:'JetBrains Mono',ui-monospace,monospace; --sans:'Inter',system-ui,sans-serif;
+  --g-source:#e0912f; --g-staging:#3a6df0; --g-mart:#1f9d6b; --g-default:#7a7f8c;
+  --edge-ref:#b565f0; --edge-dep:#3a6df0; --edge-dep-glow:#ff8a3d;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --panel:#161922; --panel-2:#1d212c; --border:#2a2f3b;
+    --text:#e6e8ee; --text-dim:#8b92a3; --accent:#6690ff; --accent-dim:#233257;
+    --g-source:#e0912f; --g-staging:#5f8bff; --g-mart:#35c088; --g-default:#8b92a3;
+    --edge-ref:#c77dff; --edge-dep:#6690ff; --edge-dep-glow:#ff9d5c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --panel:#161922; --panel-2:#1d212c; --border:#2a2f3b;
+  --text:#e6e8ee; --text-dim:#8b92a3; --accent:#6690ff; --accent-dim:#233257;
+  --g-source:#e0912f; --g-staging:#5f8bff; --g-mart:#35c088; --g-default:#8b92a3;
+  --edge-ref:#c77dff; --edge-dep:#6690ff; --edge-dep-glow:#ff9d5c;
+  color-scheme: dark;
+}
+*{box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100%;overflow:hidden;}
+html{height:100%;}
+.app{display:flex;flex-direction:column;height:100vh;height:100dvh;}
+
+.topbar{
+  display:flex;align-items:center;gap:12px;padding:10px 16px;
+  border-bottom:1px solid var(--border);background:var(--panel);flex-wrap:wrap;
+}
+.brand{font-weight:700;font-size:14px;letter-spacing:.2px;white-space:nowrap;}
+.brand span{color:var(--accent);}
+.toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto;}
+.chip{
+  font-family:var(--sans);font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;
+  border:1px solid var(--border);background:var(--panel-2);color:var(--text-dim);cursor:pointer;
+  transition:background .12s,color .12s,border-color .12s;user-select:none;
+}
+.chip:hover{border-color:var(--accent);}
+.chip.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.zoomgroup{display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:8px;padding:2px;background:var(--panel-2);}
+.iconbtn{
+  width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;
+  border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px;font-weight:700;
+}
+.iconbtn:hover{background:var(--panel);color:var(--text);}
+.iconbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.iconbtn.on{background:var(--accent-dim);color:var(--accent);}
+.tool-sep{width:1px;height:18px;background:var(--border);margin:0 2px;}
+.zoomlabel{font-size:11px;color:var(--text-dim);width:38px;text-align:center;font-variant-numeric:tabular-nums;}
+input.search{
+  font-family:var(--sans);font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);
+  background:var(--panel-2);color:var(--text);width:150px;
+}
+input.search::placeholder{color:var(--text-dim);}
+
+.views-wrap{position:relative;}
+.detail-chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--sans);}
+.detail-chip:focus-visible, .dm-item:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.detail-menu{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:25;min-width:168px;padding:6px;border-radius:10px;
+  background:var(--panel);border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,.18);
+}
+.detail-menu .dm-title{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim);font-weight:700;padding:4px 8px 6px;}
+.detail-menu .dm-item{
+  display:flex;align-items:center;gap:9px;width:100%;padding:7px 8px;border-radius:7px;border:none;background:none;
+  font-family:var(--sans);font-size:12.5px;color:var(--text);cursor:pointer;text-align:left;
+}
+.detail-menu .dm-item:hover{background:var(--panel-2);}
+.detail-menu .dm-check{margin-left:auto;color:var(--accent);font-weight:700;visibility:hidden;}
+.detail-menu .dm-item[aria-checked="true"] .dm-check{visibility:visible;}
+.views-panel{
+  display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--panel);
+  border:1px solid var(--border);border-radius:10px;padding:10px;min-width:230px;
+  box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:20;
+}
+.views-panel.show{display:block;}
+.vp-row{display:flex;gap:6px;margin-bottom:8px;}
+.vp-row input{flex:1;font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);}
+.vp-row button{font-family:var(--sans);font-size:11px;font-weight:600;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);cursor:pointer;white-space:nowrap;}
+.vp-row button:hover{border-color:var(--accent);color:var(--accent);}
+.vp-list{max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
+.vp-item{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:4px 8px;border-radius:6px;background:var(--panel-2);}
+.vp-apply{cursor:pointer;font-weight:600;color:var(--text);}
+.vp-apply:hover{color:var(--accent);}
+.vp-del{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;}
+.vp-del:hover{color:#e0523f;}
+.vp-empty{font-size:11px;color:var(--text-dim);font-style:italic;padding:2px 2px 6px;}
+
+.main{flex:1;display:flex;min-height:0;}
+.editor-pane{
+  width:38%;min-width:280px;max-width:640px;display:flex;flex-direction:column;
+  border-right:1px solid var(--border);background:var(--panel);
+  transition:width .18s ease, min-width .18s ease;
+}
+.editor-pane.collapsed{width:0!important;min-width:0!important;border-right:none;overflow:hidden;}
+.pane-rail{
+  width:16px;flex-shrink:0;background:var(--panel-2);border-right:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+}
+.pane-toggle{
+  background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;
+  padding:10px 2px;border-radius:4px;
+}
+.pane-toggle:hover{color:var(--accent);background:var(--panel);}
+
+.tables-pane{
+  width:260px;min-width:220px;max-width:340px;display:flex;flex-direction:column;
+  border-left:1px solid var(--border);background:var(--panel);
+  transition:width .18s ease, min-width .18s ease;
+}
+.tables-pane.collapsed{width:0!important;min-width:0!important;border-left:none;overflow:hidden;}
+.tables-head{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
+.tables-head h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim);font-weight:700;margin:0;}
+.groupby-select{
+  font-family:var(--sans);font-size:11.5px;font-weight:600;padding:6px 8px;border-radius:7px;
+  border:1px solid var(--border);background:var(--panel-2);color:var(--text);cursor:pointer;
+}
+.tables-list{flex:1;overflow-y:auto;padding:4px 0;}
+.tree-group{border-bottom:1px solid var(--border);}
+.tree-group-head{display:flex;align-items:center;gap:5px;padding:8px 8px 8px 10px;}
+.tree-chevron{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:10px;width:12px;flex-shrink:0;padding:0;}
+.tree-chevron:hover{color:var(--text);}
+.tree-swatch{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+.tree-swatch.schema-swatch{background:transparent!important;border:1.5px solid var(--text-dim);}
+.tree-color{
+  width:16px;height:16px;flex-shrink:0;padding:0;border:1px solid var(--border);border-radius:4px;
+  background:none;cursor:pointer;
+}
+.tree-color::-webkit-color-swatch-wrapper{padding:1px;}
+.tree-color::-webkit-color-swatch{border:none;border-radius:3px;}
+.tree-color::-moz-color-swatch{border:none;border-radius:3px;}
+.tree-gname{font-size:12px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tree-badge{font-size:9.5px;color:var(--text-dim);background:var(--panel-2);border-radius:8px;padding:1px 6px;flex-shrink:0;font-variant-numeric:tabular-nums;}
+.tree-merge{background:none;border:none;cursor:pointer;font-size:9.5px;font-weight:600;flex-shrink:0;padding:2px 4px;color:var(--text-dim);white-space:nowrap;}
+.tree-merge:hover{color:var(--accent);}
+.tree-eye{background:none;border:none;cursor:pointer;font-size:12px;flex-shrink:0;padding:2px 3px;}
+.tree-eye:hover{transform:scale(1.1);}
+.tree-row{display:flex;align-items:center;gap:6px;padding:5px 8px 5px 28px;font-size:11.5px;font-family:var(--mono);}
+.tree-row:hover{background:var(--panel-2);}
+.tree-row.off{opacity:.4;}
+.tree-row .tree-tname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tree-empty{padding:14px;font-size:11px;color:var(--text-dim);font-style:italic;}
+.editor-head{
+  padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;
+}
+.editor-head{gap:12px;}
+.editor-head h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim);font-weight:700;margin:0;white-space:nowrap;flex-shrink:0;}
+.editor-head .status{font-size:11px;color:var(--text-dim);font-family:var(--mono);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.editor-head .status.err{color:#e0523f;}
+textarea#src{
+  flex:1;resize:none;border:none;outline:none;background:var(--panel);color:var(--text);
+  font-family:var(--mono);font-size:12.5px;line-height:1.6;padding:14px;tab-size:2;
+  white-space:pre;overflow:auto;overflow-wrap:normal;
+}
+.examples-row{display:flex;gap:6px;padding:8px 14px;border-top:1px solid var(--border);}
+.examples-row button{
+  font-family:var(--sans);font-size:11px;font-weight:600;padding:5px 10px;border-radius:6px;
+  border:1px solid var(--border);background:var(--panel-2);color:var(--text-dim);cursor:pointer;
+}
+.examples-row button:hover{color:var(--text);border-color:var(--accent);}
+
+.canvas-pane{flex:1;position:relative;overflow:hidden;background:
+  radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 1px) 0 0/22px 22px, var(--bg);}
+.viewport{position:absolute;top:0;left:0;transform-origin:0 0;}
+svg#edges{position:absolute;top:0;left:0;overflow:visible;pointer-events:none;}
+#groupBoxes{position:absolute;top:0;left:0;pointer-events:none;}
+.group-box{
+  position:absolute;border:1.5px solid var(--gbc,var(--accent));border-radius:10px;
+  background:color-mix(in srgb, var(--gbc,var(--accent)) 12%, transparent);pointer-events:auto;cursor:grab;
+}
+.group-box:active{cursor:grabbing;}
+.group-box-head{
+  position:absolute;top:-1.5px;left:-1.5px;display:flex;align-items:center;gap:6px;
+  background:var(--gbc,var(--accent));color:#fff;font-family:var(--mono);font-weight:700;font-size:11.5px;
+  padding:5px 10px;border-radius:9px 9px 0 0;pointer-events:auto;white-space:nowrap;
+}
+.group-box-chevron{
+  background:rgba(255,255,255,.25);border:none;border-radius:4px;color:#fff;font-size:10px;
+  line-height:1;padding:2px 5px;cursor:pointer;
+}
+.group-box-chevron:hover{background:rgba(255,255,255,.45);}
+.group-box-palette{
+  background:none;border:none;color:#fff;opacity:.8;cursor:pointer;padding:1px 2px;margin-left:4px;
+  display:flex;align-items:center;border-radius:4px;
+}
+.group-box-palette:hover, .group-box-palette:focus-visible{opacity:1;background:rgba(255,255,255,.25);outline:none;}
+
+.color-pop{
+  position:fixed;z-index:70;width:208px;padding:12px;border-radius:12px;background:var(--panel);
+  border:1px solid var(--border);box-shadow:0 14px 36px rgba(0,0,0,.28);font-size:11px;color:var(--text);
+}
+.color-pop .cp-label{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim);font-weight:700;margin:0 0 7px;}
+.color-pop .cp-label:not(:first-child){margin-top:12px;}
+.color-pop .cp-grid{display:grid;grid-template-columns:repeat(5, 28px);gap:8px 9px;}
+.color-pop .cp-sw{
+  width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;
+}
+.color-pop .cp-sw:hover{transform:scale(1.08);}
+.color-pop .cp-sw:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.color-pop .cp-sw.sel{border-color:var(--text);}
+.color-pop .cp-sw.sel::after{content:'';width:8px;height:8px;border-radius:50%;background:#fff;}
+.color-pop .cp-custom{display:flex;gap:6px;align-items:center;}
+.color-pop .cp-custom input{
+  flex:1;min-width:0;font-family:var(--mono);font-size:12px;padding:6px 8px;border-radius:7px;
+  border:1px solid var(--border);background:var(--panel-2);color:var(--text);
+}
+.color-pop .cp-custom input[aria-invalid="true"]{border-color:#e0523f;}
+.color-pop .cp-custom button{
+  font-family:var(--sans);font-size:11px;font-weight:600;padding:6px 10px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--accent);background:var(--accent);color:#fff;
+}
+.color-pop .cp-err{color:#e0523f;font-size:10.5px;margin-top:5px;min-height:14px;}
+.color-pop .cp-reset{
+  margin-top:8px;background:none;border:none;padding:0;color:var(--accent);cursor:pointer;font-size:11px;font-family:var(--sans);
+}
+.color-pop .cp-reset:hover{text-decoration:underline;}
+
+.node{
+  position:absolute;background:var(--panel);border:1.5px solid var(--border);border-radius:10px;
+  min-width:200px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden;cursor:grab;
+}
+.node:active{cursor:grabbing;}
+.node.group-node{border-style:dashed;}
+.node.sticky-node{border-color:rgba(0,0,0,.12);box-shadow:0 3px 10px rgba(0,0,0,.14);padding:9px 12px;color:#2b2a24;}
+.sticky-name{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.6;margin-bottom:4px;}
+.sticky-text{font-size:12px;line-height:17px;white-space:pre-wrap;}
+/* Header and row heights are fixed: line endpoints are computed from them
+   (HEAD_H / ROW_H in JS), so they must never wrap or grow. */
+.node .head{
+  font-family:var(--mono);font-weight:700;font-size:12.5px;color:#fff;padding:0 10px;
+  height:30px;box-sizing:border-box;white-space:nowrap;overflow:hidden;
+  display:flex;align-items:center;justify-content:space-between;letter-spacing:.2px;gap:8px;
+}
+.node .head > span{overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.node .head > span:first-child{flex:0 1 auto;}
+.node .head > span:last-child{flex:0 10 auto;}
+.node .row{
+  display:flex;align-items:center;justify-content:space-between;padding:0 10px;gap:10px;
+  height:26px;box-sizing:border-box;white-space:nowrap;overflow:hidden;
+  font-family:var(--mono);font-size:11.5px;border-top:1px solid var(--border);color:var(--text);
+  cursor:pointer;position:relative;
+}
+.node .row .fname, .node .row .ftype{overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.node .row .ftype{flex-shrink:0;}
+.node .row:hover{background:var(--panel-2);}
+.node .row .fname{display:flex;align-items:center;gap:5px;}
+.node .row .pk{color:var(--accent);font-size:10px;}
+.node .row .ftype{color:var(--text-dim);}
+.node .row.hidden-fields{cursor:default;font-style:italic;font-size:10.5px;}
+.node .row.dim{opacity:.55;cursor:default;}
+.node .row.trace-hit{background:var(--accent-dim);}
+.node .row.trace-hit .fname{color:var(--accent);font-weight:700;}
+.node.dim{opacity:.25;}
+.node.trace-hit{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+.expand-btn{
+  background:rgba(255,255,255,.25);border:none;border-radius:5px;color:#fff;font-size:11px;
+  padding:2px 7px;cursor:pointer;flex-shrink:0;
+}
+.expand-btn:hover{background:rgba(255,255,255,.45);}
+
+.legend{
+  position:absolute;left:16px;bottom:16px;background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:10px 14px;font-size:11px;color:var(--text-dim);display:flex;gap:10px;flex-wrap:wrap;
+  box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:calc(100% - 32px);align-items:center;
+}
+.legend .item{display:flex;align-items:center;gap:6px;}
+.legend .swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+.legend .edge-sample{display:inline-block;width:18px;height:2px;}
+.legend-group{padding:3px 6px;border-radius:7px;}
+.legend-group.off{opacity:.45;}
+.legend-group.off .glabel{text-decoration:line-through;}
+.mini-btn{background:none;border:1px solid var(--border);border-radius:5px;font-size:10px;line-height:1;padding:3px 5px;cursor:pointer;color:var(--text-dim);}
+.mini-btn:hover{color:var(--text);border-color:var(--accent);}
+
+.tracebar{
+  position:absolute;top:16px;right:16px;max-width:320px;background:var(--panel);border:1px solid var(--accent);
+  border-radius:10px;padding:12px 14px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);display:none;
+}
+.tracebar.show{display:block;}
+.tracebar .th{font-weight:700;color:var(--accent);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;}
+.tracebar .th button{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;}
+.tracebar .path{font-family:var(--mono);font-size:11px;color:var(--text-dim);line-height:1.7;}
+
+.edge-flow{fill:none;pointer-events:none;stroke-linecap:round;}
+.edge-flow.dep-flow{
+  stroke:var(--edge-dep);stroke-width:3.4;stroke-dasharray:8 7;
+  animation:edgeFlow .7s linear infinite;
+  filter:drop-shadow(0 0 3px var(--edge-dep));
+}
+.edge-flow.ref-flow{
+  stroke:var(--edge-ref);stroke-width:4.5;stroke-dasharray:0.1 14.9;
+  animation:edgeFlow .7s linear infinite;
+  filter:drop-shadow(0 0 3px var(--edge-ref));
+}
+.edge-flow.flow-reverse{animation-direction:reverse;}
+.edge-flow.dep-flow.flow-all{stroke-width:2.6;}
+.edge-flow.ref-flow.flow-all{stroke-width:3.6;}
+@keyframes edgeFlow{ to{ stroke-dashoffset:-15; } }
+@media (prefers-reduced-motion: reduce){
+  .edge-flow.dep-flow, .edge-flow.ref-flow{animation:none;}
+}
+.card-label{font-family:var(--mono);font-size:10px;font-weight:700;fill:var(--edge-ref);}
+
+.note-icon{
+  display:inline-block;width:8px;height:10px;margin-left:5px;vertical-align:-1px;
+  border:1.3px solid currentColor;border-radius:2px;opacity:.55;
+  background:linear-gradient(currentColor,currentColor) 50% 35%/4px 1px no-repeat,
+             linear-gradient(currentColor,currentColor) 50% 65%/4px 1px no-repeat;
+}
+.nn-badge{
+  font-size:8.5px;font-weight:700;margin-left:4px;padding:0 3px;border-radius:3px;
+  background:var(--panel-2);color:var(--text-dim);border:1px solid var(--border);
+}
+.dep-tooltip .dt-colhead{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);}
+.dep-tooltip .dt-colname{font-weight:700;font-size:13.5px;color:var(--text);}
+.dep-tooltip .dt-coltype{font-size:12px;font-weight:600;color:var(--g-source);}
+.dep-tooltip .dt-sub{font-size:10.5px;color:var(--text-dim);margin-top:3px;font-family:var(--mono);}
+.dep-tooltip .dt-dim{color:var(--text-dim);}
+.dep-tooltip .dt-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;}
+.dep-tooltip .dt-badge{
+  font-size:9.5px;font-weight:700;letter-spacing:.3px;padding:1px 6px;border-radius:4px;
+  background:var(--panel-2);color:var(--text-dim);border:1px solid var(--border);font-family:var(--mono);
+}
+
+.dep-tooltip{
+  position:fixed;width:340px;max-width:calc(100vw - 24px);background:var(--panel);
+  border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 36px rgba(0,0,0,.3);
+  font-size:12px;color:var(--text);z-index:60;overflow:hidden;display:none;pointer-events:none;
+}
+.dep-tooltip.show{display:block;}
+.dep-tooltip .dt-head{padding:11px 14px;border-bottom:1px solid var(--border);}
+.dep-tooltip .dt-from{font-family:var(--mono);font-weight:700;font-size:12.5px;color:var(--text-dim);}
+.dep-tooltip .dt-arrow{font-family:var(--mono);font-weight:700;font-size:12.5px;color:var(--edge-dep);margin-top:2px;}
+.dep-tooltip .dt-section{padding:10px 14px;border-bottom:1px solid var(--border);}
+.dep-tooltip .dt-section:last-child{border-bottom:none;}
+.dep-tooltip .dt-label{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim);font-weight:700;margin-bottom:6px;}
+.dep-tooltip .dt-note{line-height:1.5;white-space:pre-wrap;}
+.dep-tooltip .dt-sql{
+  background:var(--panel-2);border-radius:8px;padding:10px;font-family:var(--mono);font-size:10.5px;
+  line-height:1.6;white-space:pre-wrap;color:var(--text);max-height:180px;overflow-y:auto;
+}
+.dep-tooltip .dt-cols{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:10.5px;color:var(--text-dim);}
+
+@media (max-width:760px){
+  .main{flex-direction:column;}
+  .editor-pane{width:100%;max-width:none;height:40%;border-right:none;border-bottom:1px solid var(--border);}
+  .canvas-pane{height:60%;}
+  .toolbar{width:100%;}
+}
+</style>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand">Schema Lineage <span>Studio</span></div>
+    <div class="toolbar">
+      <input class="search" id="search" placeholder="find a table…">
+      <div class="chip active" data-mode="both" id="chip-both">ERD + Lineage</div>
+      <div class="chip" data-mode="ref" id="chip-ref">Ref only</div>
+      <div class="chip" data-mode="dep" id="chip-dep">Lineage only</div>
+      <div class="views-wrap">
+        <button class="chip detail-chip" id="detailChip" aria-haspopup="menu" aria-expanded="false" title="Detail level: which columns tables show">
+          <span id="detailIcon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11M1.5 6h13"/></svg></span><span id="detailLabel">All</span> ▾
+        </button>
+        <div class="detail-menu" id="detailMenu" role="menu" aria-label="Detail levels" hidden>
+          <div class="dm-title">Detail levels</div>
+          <button class="dm-item" role="menuitemradio" data-level="keys" aria-checked="false"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="5" cy="11" r="3.2"/><path d="M7.3 8.7 14 2M11 5l2 2M12.5 3.5l1.5 1.5"/></svg><span>Keys</span><span class="dm-check" aria-hidden="true">✓</span></button>
+          <button class="dm-item" role="menuitemradio" data-level="all" aria-checked="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11M1.5 6h13"/></svg><span>All</span><span class="dm-check" aria-hidden="true">✓</span></button>
+        </div>
+      </div>
+      <div class="views-wrap">
+        <div class="chip" id="viewsChip">Views ▾</div>
+        <div class="views-panel" id="viewsPanel"></div>
+      </div>
+      <div class="zoomgroup">
+        <button class="iconbtn" id="zoomout">−</button>
+        <div class="zoomlabel" id="zoomlabel">100%</div>
+        <button class="iconbtn" id="zoomin">+</button>
+        <button class="iconbtn" id="zoomfit" title="reset view">⤢</button>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <button class="iconbtn" id="flowAllBtn" aria-pressed="false" title="Highlight all lines (H)" aria-label="Highlight all lines">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="1.5" y="1.5" width="4" height="4" rx="1"/><rect x="10.5" y="10.5" width="4" height="4" rx="1"/>
+            <path d="M5.5 3.5 H8 V12.5 H10.5" stroke-dasharray="1.6 1.6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="editor-pane" id="editorPane">
+      <div class="editor-head">
+        <h2>Schema source</h2>
+        <div class="status" id="status">parsed ✓</div>
+      </div>
+      <textarea id="src" spellcheck="false" wrap="off"></textarea>
+      <div class="examples-row">
+        <button data-ex="pipeline">Pipeline example</button>
+        <button data-ex="minimal">Minimal example</button>
+      </div>
+    </div>
+    <div class="pane-rail">
+      <button class="pane-toggle" id="paneToggle" title="collapse schema source">‹</button>
+    </div>
+    <div class="canvas-pane" id="canvasPane">
+      <div class="viewport" id="viewport">
+        <div id="groupBoxes"></div>
+        <svg id="edges"></svg>
+        <div id="nodes"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="tracebar" id="tracebar">
+        <div class="th"><span>Column trace</span><button id="traceClose">✕</button></div>
+        <div class="path" id="tracepath"></div>
+      </div>
+      <div class="dep-tooltip" id="depTooltip"></div>
+      <div class="color-pop" id="colorPop" role="dialog" aria-label="group color" hidden></div>
+    </div>
+    <div class="pane-rail">
+      <button class="pane-toggle" id="paneToggle2" title="collapse tables panel">›</button>
+    </div>
+    <div class="tables-pane" id="tablesPane">
+      <div class="tables-head">
+        <h2>Tables</h2>
+        <select class="groupby-select" id="groupBySelect">
+          <option value="group">Group by: Table Group</option>
+          <option value="schema">Group by: Schema</option>
+        </select>
+      </div>
+      <div class="tables-list" id="treeList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+const PIPELINE_EXAMPLE = `// =============================================================================
+// DBML reference example — ERD + data lineage, every syntax feature in one file
+// Valid for dbdiagram.io (checked with @dbml/core 10.2) and Schema Lineage Studio.
+//
+// Map of what's where (search for the tag):
+//   [project]   Project block                     [enum]      enums, quoted values, value notes
+//   [partial]   TablePartial + ~injection         [table]     alias, header color, settings, custom props
+//   [column]    every column setting              [note]      all note forms, multi-line, escaping
+//   [index]     every index form                  [check]     column + table checks
+//   [records]   sample data, both forms           [metadata]  Metadata block
+//   [ref]       every relationship form           [group]     TableGroup forms
+//   [sticky]    sticky notes                      [dep]       every data-lineage form
+// =============================================================================
+
+/* Block comments work too.
+   Everything between slash-star and star-slash is ignored. */
+
+// [project] ------------------------------------------------------------------
+Project ecommerce_analytics {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # E-commerce analytics warehouse
+    raw (landed as-is) -> staging (cleaned) -> marts (modelled for BI).
+  '''
+}
+
+// [enum] ---------------------------------------------------------------------
+// An enum is a reusable value list; use it as a column type (schema-qualified).
+enum raw.stripe_charge_status {
+  succeeded
+  pending
+  failed [note: 'Card declined or the charge errored']
+}
+
+enum marts.order_state {
+  complete [note: 'Paid and not refunded']
+  pending
+  cancelled
+}
+
+// values with spaces or symbols go in double quotes
+enum marts.plan_tier {
+  "free"
+  "pro"
+  "enterprise (annual)"
+}
+
+// [partial] ------------------------------------------------------------------
+// A TablePartial is a reusable set of columns; inject it with ~name.
+// If a table defines the same column itself, the table's own definition wins.
+TablePartial audit_columns {
+  created_at timestamp [not null, default: \`now()\`]
+  updated_at timestamp [null]
+}
+
+TablePartial soft_delete {
+  deleted_at timestamp [null, note: 'NULL = live row; set = soft-deleted']
+}
+
+// [table] reference data in the default schema (no prefix = public) ------------
+// headercolor sets this table's header color; [records] ships sample rows.
+Table countries [headercolor: #16a085, note: 'ISO-3166 reference list, loaded once.'] {
+  code char(2) [pk, note: 'ISO-3166 alpha-2, e.g. US']
+  name varchar(100) [not null, unique]
+  continent varchar(20)
+}
+
+// [records] top-level form: records <table>(<columns>) { rows }
+records countries(code, name, continent) {
+  'US', 'United States', 'North America'
+  'DE', 'Germany', 'Europe'
+  'JP', 'Japan', 'Asia'
+}
+
+// =============================================================================
+// raw — landed straight from source systems, no transforms
+// =============================================================================
+
+// [table] "as" gives a short alias you can use in Ref / Dep lines
+// [column] every setting: pk, not null, null, unique, default (number, string,
+//          expression, boolean), increment, check, note, custom properties
+Table raw.stripe_charges as charges [note: 'Raw Stripe charges, loaded hourly via webhook.'] {
+  charge_id varchar(64) [pk, note: 'Stripe ch_... id, stable across retries.']
+  order_ref varchar(64) [not null, note: 'Our order_id, sent to Stripe as metadata.']
+  amount_cents integer [not null, check: \`amount_cents >= 0\`, note: 'In cents, exactly as Stripe sends it.']
+  refunded_cents integer [not null, default: 0]
+  currency char(3) [not null, default: 'usd']
+  status raw.stripe_charge_status [not null]
+  livemode boolean [default: true]
+  created_at timestamp
+
+  // [index] single column, and composite with a name
+  indexes {
+    order_ref
+    (status, created_at) [name: 'ix_charges_status_time']
+  }
+}
+
+// [partial] ~audit_columns injects created_at / updated_at here
+Table raw.app_orders as ao {
+  id integer [pk]
+  customer_id integer [not null]
+  product_id integer [not null]
+  status varchar(20)
+  placed_at timestamp
+  ~audit_columns
+}
+
+Table raw.app_customers {
+  id integer [pk]
+  email varchar(255)
+  full_name varchar(200)
+  country_code char(2)
+  signup_at timestamp
+  ~audit_columns
+  ~soft_delete
+}
+
+// [column] array type and a column type with arguments
+Table raw.app_products {
+  id integer [pk]
+  sku varchar(40) [unique]
+  name varchar(200)
+  category varchar(50)
+  tags varchar[]
+  list_price_cents integer
+}
+
+// [column] a quoted column name (spaces allowed inside double quotes)
+Table raw.web_events {
+  event_id varchar(64) [pk]
+  session_id varchar(64) [not null]
+  customer_id integer [null, note: 'NULL for anonymous visitors']
+  event_type varchar(40)
+  "user agent" text
+  occurred_at timestamp
+}
+
+// =============================================================================
+// staging — cleaned and typed, one row per source record
+// =============================================================================
+
+// [dep] inline column-level lineage: dep: <- upstream.column
+Table staging.stg_payments {
+  order_id integer [pk]
+  gross_amount decimal(12,2) [dep: <- raw.stripe_charges.amount_cents, note: 'Divided by 100. Stripe stores cents.']
+  refund_amount decimal(12,2) [dep: <- raw.stripe_charges.refunded_cents, note: 'Divided by 100. 0 when nothing was refunded.']
+  currency char(3) [dep: <- raw.stripe_charges.currency]
+}
+
+// [dep] table-level inline lineage in the table settings: [dep: <- upstream_table]
+// [note] Note: '...' inside the table body
+Table staging.stg_orders [dep: <- raw.app_orders] {
+  order_id integer [pk]
+  customer_id integer [not null]
+  product_id integer [not null]
+  status varchar(20)
+  placed_at timestamp
+
+  Note: 'Cleaned orders. Excludes test/internal accounts.'
+}
+
+// [note] escaping a single quote inside a string: \\'
+// [table] custom properties on a column: masking: "partial"
+Table staging.stg_customers {
+  customer_id integer [pk]
+  email varchar(255) [unique, masking: "partial", note: 'Lower-cased and trimmed — the customer\\'s login.']
+  full_name varchar(200)
+  country_code char(2)
+  signup_date date
+}
+
+// [dep] inline, downstream direction: dep: -> downstream.column
+Table staging.stg_products {
+  product_id integer [pk]
+  sku varchar(40) [unique]
+  name varchar(200)
+  category varchar(50) [dep: -> marts.dim_products.category]
+  list_price decimal(12,2)
+}
+
+// [column] a type name with a space goes in double quotes
+Table staging.stg_sessions {
+  session_id varchar(64) [pk]
+  customer_id integer [ref: >? staging.stg_customers.customer_id]
+  started_at timestamp
+  ended_at timestamp
+  event_count integer
+  engagement_score "double precision"
+}
+
+// [metadata] attach properties to an already-defined table
+Metadata Table staging.stg_customers {
+  owner: 'crm-team'
+  contains_pii: 'true'
+}
+
+// =============================================================================
+// marts — the model BI tools query
+// =============================================================================
+
+// [enum] a column typed with an enum; [table] custom property owner: "..."
+// [note] Note { '''...''' } block form, multi-line
+Table marts.dim_customers [owner: "data-platform"] {
+  customer_id integer [pk]
+  email varchar(255)
+  full_name varchar(200)
+  country_code char(2)
+  plan marts.plan_tier [default: 'free']
+  signup_date date
+
+  Note {
+    '''
+    One row per customer, SCD type 1 (overwritten, no history).
+    Joins to countries on country_code.
+    '''
+  }
+}
+
+Table marts.dim_products {
+  product_id integer [pk]
+  sku varchar(40)
+  name varchar(200)
+  category varchar(50)
+}
+
+// [index] pk composite key via indexes
+Table marts.dim_product_prices {
+  product_id integer
+  currency char(3)
+  list_price decimal(12,2) [not null]
+
+  indexes {
+    (product_id, currency) [pk]
+  }
+}
+
+// [column] increment; [records] in-table form
+Table marts.dim_promotions {
+  promo_id integer [pk, increment]
+  code varchar(30) [unique, not null]
+  pct_off decimal(5,2) [check: \`pct_off > 0 and pct_off <= 100\`]
+
+  records (promo_id, code, pct_off) {
+    1, 'WELCOME10', 10.0
+    2, 'VIP25', 25.0
+  }
+}
+
+// [check] table-level checks block; [index] hash, expression, index note
+// [column] multi-line column note
+Table marts.fct_orders [note: 'One row per order. The order-facts table everything downstream reads.'] {
+  order_id integer [pk]
+  customer_id integer [not null]
+  product_id integer [not null]
+  net_amount decimal(12,2) [not null, note: 'gross - refund. Finance reconciles this to Stripe payouts monthly.']
+  state marts.order_state [not null, note: '''
+    complete  = paid, not refunded
+    pending   = awaiting capture
+    cancelled = voided before capture
+  ''']
+  placed_at timestamp
+
+  indexes {
+    (customer_id, placed_at) [name: 'ix_orders_customer_time', note: 'Customer order-history lookups']
+    state [type: hash]
+    (\`date_trunc('day', placed_at)\`) [name: 'ix_orders_day']
+  }
+
+  checks {
+    \`net_amount >= 0\` [name: 'chk_net_amount_nonneg']
+  }
+}
+
+// [index] unique composite
+Table marts.fct_order_items {
+  order_id integer [not null]
+  line_no smallint [not null]
+  product_id integer [not null]
+  currency char(3) [not null]
+  quantity integer [not null, default: 1]
+  unit_price decimal(12,2)
+
+  indexes {
+    (order_id, line_no) [pk]
+    (order_id, product_id) [unique]
+  }
+}
+
+Table marts.fct_sessions {
+  session_id varchar(64) [pk]
+  customer_id integer
+  session_date date
+  duration_seconds integer
+}
+
+Table marts.mart_customer_ltv {
+  customer_id integer [pk]
+  lifetime_orders integer [not null, default: 0]
+  lifetime_revenue decimal(12,2) [note: 'Sum of net_amount over complete orders only.']
+  first_session_date date [note: 'NULL for customers who ordered without a tracked session.']
+}
+
+Table marts.mart_revenue_daily [note: 'Daily revenue for the finance dashboard. Timezone = UTC.'] {
+  day date [pk, note: 'UTC calendar day.']
+  revenue decimal(12,2) [note: 'The number on the finance dashboard headline.']
+  order_count integer [not null]
+}
+
+// =============================================================================
+// [ref] relationships. Operator = cardinality:
+//   >  many-to-one   <  one-to-many   -  one-to-one   <>  many-to-many
+//   add ? on a side to make it optional (zero allowed): >?  ?>  -?  ?<>
+// (inline refs: see staging.stg_sessions.customer_id above)
+// =============================================================================
+
+// short form, referring to a table by its alias (ao = raw.app_orders)
+Ref: ao.customer_id > raw.app_customers.id
+
+// short form with actions and a line color
+Ref: marts.fct_orders.customer_id > marts.dim_customers.customer_id [delete: restrict, update: cascade, color: #c0392b]
+
+// named short form, one-to-many written from the "one" side
+Ref fk_orders_product: marts.dim_products.product_id < marts.fct_orders.product_id
+
+// long form: a (named) block — holds exactly ONE relationship, settings after it
+Ref order_items_order {
+  marts.fct_order_items.order_id > marts.fct_orders.order_id [delete: cascade]
+}
+
+Ref: marts.fct_order_items.product_id > marts.dim_products.product_id
+
+// composite foreign key: (col, col) > (col, col)
+Ref: marts.fct_order_items.(product_id, currency) > marts.dim_product_prices.(product_id, currency)
+
+// cross-schema ref into the default schema, optional on the countries side
+Ref: marts.dim_customers.country_code >? countries.code
+
+// one-to-one: exactly one LTV row per customer
+Ref: marts.mart_customer_ltv.customer_id - marts.dim_customers.customer_id
+
+// many-to-many: dbdiagram draws it directly (a junction table is implied)
+Ref: marts.dim_promotions.promo_id <> marts.dim_products.product_id
+
+// optional: anonymous sessions have no customer
+Ref: marts.fct_sessions.customer_id >? marts.dim_customers.customer_id
+
+// staging relationships
+Ref: staging.stg_orders.customer_id > staging.stg_customers.customer_id
+Ref: staging.stg_products.product_id < staging.stg_orders.product_id
+
+// [inactive] keep a documented-but-not-enforced relationship on the diagram
+Ref: raw.web_events.customer_id > raw.app_customers.id [inactive]
+
+// =============================================================================
+// [group] TableGroup: define the group, then list its tables
+// =============================================================================
+
+// quoted name, color and note in settings
+TableGroup "Source Systems" [color: #e0912f, note: 'Landed as-is from Stripe, the app DB and clickstream.'] {
+  raw.stripe_charges
+  raw.app_orders
+  raw.app_customers
+  raw.app_products
+  raw.web_events
+}
+
+// Note: '''...''' inside the group block
+TableGroup "Staging" [color: #3a6df0] {
+  staging.stg_payments
+  staging.stg_orders
+  staging.stg_customers
+  staging.stg_products
+  staging.stg_sessions
+
+  Note: '''
+  Cleaned and typed, one row per source record. No joins, no aggregation.
+  '''
+}
+
+// unquoted group name
+TableGroup core_marts [color: #d1477a, note: 'Star schema: facts + dimensions.'] {
+  marts.dim_customers
+  marts.dim_products
+  marts.dim_product_prices
+  marts.dim_promotions
+  marts.fct_orders
+  marts.fct_order_items
+}
+
+// same "marts" schema, different group: schema and group are independent
+TableGroup "Marketing Marts" [color: #1f9d6b] {
+  marts.fct_sessions
+  marts.mart_customer_ltv
+  marts.mart_revenue_daily
+}
+
+// [sticky] free-floating notes on the canvas
+Note warehouse_conventions [color: #F4D03F] {
+  '''
+  Conventions
+  - raw.* is append-only
+  - money is decimal(12,2) from staging onward
+  - timestamps are UTC
+  '''
+}
+
+// =============================================================================
+// [dep] data lineage. Arrows point upstream -> downstream (<- also works).
+// Rules: every edge in one Dep block must feed the same downstream table and
+// be the same level (all table-level or all column-level); no edge repeats.
+// =============================================================================
+
+// short form, table-level
+Dep: raw.app_products -> staging.stg_products
+
+// short form written with <- (downstream first)
+Dep: staging.stg_customers <- raw.app_customers
+
+// short form, column-level
+Dep: staging.stg_products.list_price -> marts.dim_product_prices.list_price
+
+// short form, mixed level (table -> column) with a note
+Dep: raw.web_events -> staging.stg_sessions.event_count [note: 'COUNT(*) of events per session']
+
+// short form with a color
+Dep: staging.stg_orders -> marts.fct_order_items [color: #8e44ad]
+
+// named block with settings: color, note, materialized, owner, custom key, query
+Dep order_facts [color: #d1477a] {
+  staging.stg_orders.order_id      -> marts.fct_orders.order_id
+  staging.stg_orders.customer_id   -> marts.fct_orders.customer_id
+  staging.stg_orders.product_id    -> marts.fct_orders.product_id
+  staging.stg_orders.placed_at     -> marts.fct_orders.placed_at
+  staging.stg_orders.status        -> marts.fct_orders.state
+  staging.stg_payments.gross_amount  -> marts.fct_orders.net_amount
+  staging.stg_payments.refund_amount -> marts.fct_orders.net_amount
+
+  note: 'Renames status -> state; net_amount = gross - refund, paid orders only.'
+  materialized: incremental
+  owner: 'data-platform'
+  sla: 'daily 06:00 UTC'
+  query: '''
+    SELECT o.order_id, o.customer_id, o.product_id, o.placed_at,
+           CASE WHEN o.status = 'paid' THEN 'complete' ELSE o.status END AS state,
+           p.gross_amount - p.refund_amount AS net_amount
+    FROM staging.stg_orders o
+    JOIN staging.stg_payments p ON p.order_id = o.order_id
+  '''
+}
+
+// unnamed block, SQL written inside the note as a fenced block
+Dep {
+  staging.stg_customers.customer_id  -> marts.dim_customers.customer_id
+  staging.stg_customers.email        -> marts.dim_customers.email
+  staging.stg_customers.full_name    -> marts.dim_customers.full_name
+  staging.stg_customers.country_code -> marts.dim_customers.country_code
+  staging.stg_customers.signup_date  -> marts.dim_customers.signup_date
+
+  note: '''
+  Straight passthrough, overwritten in place.
+
+  \`\`\`sql
+  SELECT customer_id, email, full_name, country_code, signup_date
+  FROM staging.stg_customers
+  \`\`\`
+  '''
+}
+
+// table-level block: several upstream tables feed one downstream table
+Dep sessions_build {
+  staging.stg_sessions  -> marts.fct_sessions
+  staging.stg_customers -> marts.fct_sessions
+  note: 'Sessions enriched with customer attributes.'
+}
+
+Dep: staging.stg_products.product_id -> marts.dim_products.product_id
+
+Dep revenue_daily {
+  marts.fct_orders.placed_at  -> marts.mart_revenue_daily.day
+  marts.fct_orders.net_amount -> marts.mart_revenue_daily.revenue
+  marts.fct_orders.order_id   -> marts.mart_revenue_daily.order_count
+  note: '''
+  One row per UTC day.
+
+  \`\`\`sql
+  SELECT placed_at::date AS day, SUM(net_amount) AS revenue, COUNT(*) AS order_count
+  FROM marts.fct_orders
+  WHERE state = 'complete'
+  GROUP BY 1
+  \`\`\`
+  '''
+}
+
+Dep customer_ltv {
+  marts.fct_orders.net_amount     -> marts.mart_customer_ltv.lifetime_revenue
+  marts.fct_orders.order_id       -> marts.mart_customer_ltv.lifetime_orders
+  marts.fct_sessions.session_date -> marts.mart_customer_ltv.first_session_date
+  note: 'Lifetime rollups per customer, rebuilt nightly.'
+}
+`;
+
+const MINIMAL_EXAMPLE = `// no dot in the table name -> schema defaults to "public"
+Table users {
+  id integer [pk]
+  email varchar
+}
+
+TableGroup "Core" [color: #3a6df0] {
+  users
+  orders
+}
+
+Table orders {
+  id integer [pk]
+  user_id integer
+  total decimal
+}
+
+Ref: orders.user_id > users.id
+`;
+
+// ---------- Parser ----------
+// ---------- DBML parser (ERD + data lineage) ----------
+// A small brace- and quote-aware scanner instead of line regexes, so nested
+// blocks (indexes / checks / records / Note {}), multi-line '''strings''',
+// \' escapes, /* */ comments and settings that span lines all parse correctly.
+
+const REF_CARD = { '>':['many','one'], '<':['one','many'], '-':['one','one'], '<>':['many','many'] };
+const ID = String.raw`(?:"[^"]+"|\w+)`;
+const QNAME = String.raw`${ID}(?:\.${ID})*`;
+
+// Remove // and /* */ comments, leaving strings (incl. URLs in notes) intact.
+function stripComments(src){
+  let out = '', i = 0; const n = src.length;
+  while(i < n){
+    if(src.startsWith("'''", i)){ const j = src.indexOf("'''", i + 3); const e = j < 0 ? n : j + 3; out += src.slice(i, e); i = e; continue; }
+    const c = src[i];
+    if(c === "'" || c === '"' || c === '`'){ const e = endOfString(src, i); out += src.slice(i, e); i = e; continue; }
+    if(c === '/' && src[i+1] === '/'){ while(i < n && src[i] !== '\n') i++; continue; }
+    if(c === '/' && src[i+1] === '*'){ const j = src.indexOf('*/', i + 2); const e = j < 0 ? n : j + 2; out += src.slice(i, e).replace(/[^\n]/g, ' '); i = e; continue; }
+    out += c; i++;
+  }
+  return out;
+}
+// index just past a '...', "..." or `...` string starting at i (single-line, \ escapes)
+function endOfString(src, i){
+  const q = src[i]; let j = i + 1;
+  while(j < src.length && src[j] !== q && src[j] !== '\n'){ if(src[j] === '\\') j++; j++; }
+  return Math.min(j + 1, src.length);
+}
+
+// Split text into statements: single logical lines, and `header { body }` blocks.
+// Newlines inside strings, [settings] or (parens) don't end a statement.
+function splitStatements(src){
+  const items = []; let cur = '', bracket = 0, paren = 0, i = 0; const n = src.length;
+  const flush = () => { const t = cur.trim(); if(t) items.push({ kind:'line', text:t }); cur = ''; };
+  while(i < n){
+    if(src.startsWith("'''", i)){ const j = src.indexOf("'''", i + 3); const e = j < 0 ? n : j + 3; cur += src.slice(i, e); i = e; continue; }
+    const c = src[i];
+    if(c === "'" || c === '"' || c === '`'){ const e = endOfString(src, i); cur += src.slice(i, e); i = e; continue; }
+    if(c === '[') bracket++;
+    else if(c === ']') bracket = Math.max(0, bracket - 1);
+    else if(c === '(') paren++;
+    else if(c === ')') paren = Math.max(0, paren - 1);
+    if(c === '{' && bracket === 0){
+      const header = cur.trim(); cur = '';
+      let depth = 1, j = i + 1;
+      while(j < n && depth > 0){
+        if(src.startsWith("'''", j)){ const k = src.indexOf("'''", j + 3); j = k < 0 ? n : k + 3; continue; }
+        const d = src[j];
+        if(d === "'" || d === '"' || d === '`'){ j = endOfString(src, j); continue; }
+        if(d === '{') depth++; else if(d === '}') depth--;
+        j++;
+      }
+      items.push({ kind:'block', header, body: src.slice(i + 1, Math.max(i + 1, j - 1)) });
+      i = j; continue;
+    }
+    if(c === '\n' && bracket === 0 && paren === 0){ flush(); i++; continue; }
+    cur += c; i++;
+  }
+  flush();
+  return items;
+}
+
+// "[a, b: 'x, y', c: `f(1, 2)`]" -> [{key:'a', value:null}, {key:'b', value:"'x, y'"}, ...]
+function parseSettings(raw){
+  if(!raw) return [];
+  let s = raw.trim();
+  if(s.startsWith('[') && s.endsWith(']')) s = s.slice(1, -1);
+  const parts = []; let cur = '', depth = 0, i = 0;
+  while(i < s.length){
+    if(s.startsWith("'''", i)){ const j = s.indexOf("'''", i + 3); const e = j < 0 ? s.length : j + 3; cur += s.slice(i, e); i = e; continue; }
+    const c = s[i];
+    if(c === "'" || c === '"' || c === '`'){ const e = endOfString(s, i); cur += s.slice(i, e); i = e; continue; }
+    if(c === '(' || c === '[') depth++;
+    if(c === ')' || c === ']') depth--;
+    if(c === ',' && depth === 0){ parts.push(cur); cur = ''; i++; continue; }
+    cur += c; i++;
+  }
+  parts.push(cur);
+  return parts.map(p => p.trim()).filter(Boolean).map(p => {
+    const m = p.match(/^([\w ]+?)\s*:\s*([\s\S]*)$/);
+    return m ? { key: m[1].trim().toLowerCase(), value: m[2].trim() } : { key: p.toLowerCase().replace(/\s+/g, ' '), value: null };
+  });
+}
+const setting = (list, key) => { const s = list.find(x => x.key === key); return s ? s.value : undefined; };
+const hasFlag = (list, key) => list.some(x => x.key === key && x.value === null);
+
+// '...' / "..." / '''...''' -> plain text ('''...''' is dedented like DBML does)
+function unquote(v){
+  if(v == null) return null;
+  v = v.trim();
+  if(v.startsWith("'''") && v.endsWith("'''") && v.length >= 6) return dedent(v.slice(3, -3));
+  if((v.startsWith("'") && v.endsWith("'")) || (v.startsWith('"') && v.endsWith('"'))) return v.slice(1, -1).replace(/\\(['"\\])/g, '$1');
+  return v;
+}
+function dedent(s){
+  const lines = s.replace(/\r/g, '').split('\n');
+  while(lines.length && !lines[0].trim()) lines.shift();
+  while(lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  const ind = Math.min(...lines.filter(l => l.trim()).map(l => l.match(/^\s*/)[0].length), Infinity);
+  return lines.map(l => l.slice(isFinite(ind) ? ind : 0)).join('\n');
+}
+// a Note block body is just a string literal
+const blockString = body => unquote(body.trim());
+// `"a"."b"` / public.x -> canonical key (quotes off, default schema dropped)
+function canon(name){
+  const s = name.replace(/"([^"]*)"/g, '$1').trim();
+  return s.startsWith('public.') ? s.slice(7) : s;
+}
+function splitTableName(key){
+  const d = key.lastIndexOf('.');
+  return d < 0 ? { schema:'public', table:key } : { schema:key.slice(0, d), table:key.slice(d + 1) };
+}
+
+// Pull a SQL fenced block out of a note: ```sql ... ```
+function splitNoteSql(text){
+  if(!text) return { note:null, sql:null };
+  const m = text.match(/```sql\s*([\s\S]*?)```/i);
+  if(!m) return { note:text, sql:null };
+  const rest = text.replace(m[0], '').trim();
+  return { note: rest || null, sql: dedent(m[1]) };
+}
+
+function parseSchema(text){
+  const errors = [];
+  const tables = new Map(), aliases = new Map(), partials = new Map(), enums = new Map();
+  const refs = [], deps = [], stickies = [];
+  const groupColors = {}, groupNotes = {};
+  let project = null;
+  const top = splitStatements(stripComments(text));
+  const pendingTables = [], pendingGroups = [], pendingMeta = [], pendingRecords = [];
+  const rawRefs = [], rawDeps = [];
+
+  // ---- pass 1: collect every top-level construct ----
+  for(const it of top){
+    if(it.kind === 'block'){
+      const h = it.header;
+      let m;
+      if((m = h.match(new RegExp(`^Table\\s+(${QNAME})(?:\\s+as\\s+(${ID}))?\\s*(\\[[\\s\\S]*\\])?$`, 'i')))) pendingTables.push({ name:m[1], alias:m[2], settings:parseSettings(m[3]), body:it.body });
+      else if((m = h.match(new RegExp(`^TablePartial\\s+(${ID})\\s*(\\[[\\s\\S]*\\])?$`, 'i')))) partials.set(canon(m[1]), { settings:parseSettings(m[2]), body:it.body });
+      else if((m = h.match(new RegExp(`^TableGroup\\s+(${ID})\\s*(\\[[\\s\\S]*\\])?$`, 'i')))) pendingGroups.push({ name:m[1].replace(/^"|"$/g, ''), settings:parseSettings(m[2]), body:it.body });
+      else if((m = h.match(new RegExp(`^enum\\s+(${QNAME})$`, 'i')))) enums.set(canon(m[1]), parseEnum(it.body));
+      else if((m = h.match(/^Project(?:\s+(\S+))?$/i))) project = parseProject(m[1], it.body);
+      else if((m = h.match(new RegExp(`^Ref(?:\\s+(${ID}))?\\s*$`, 'i')))) splitStatements(it.body).forEach(s => s.kind === 'line' && rawRefs.push({ text:s.text, name:m[1] }));
+      else if((m = h.match(new RegExp(`^Dep(?:\\s+(${ID}))?\\s*(\\[[\\s\\S]*\\])?$`, 'i')))) rawDeps.push({ block:true, name:m[1] ? m[1].replace(/^"|"$/g, '') : null, settings:parseSettings(m[2]), body:it.body });
+      else if((m = h.match(new RegExp(`^Note\\s+(${ID})\\s*(\\[[\\s\\S]*\\])?$`, 'i')))) stickies.push({ name:m[1].replace(/^"|"$/g, ''), color: setting(parseSettings(m[2]), 'color') || null, text: blockString(it.body) });
+      else if((m = h.match(new RegExp(`^Metadata\\s+Table\\s+(${QNAME})$`, 'i')))) pendingMeta.push({ table:m[1], body:it.body });
+      else if((m = h.match(new RegExp(`^records\\s+(${QNAME})\\s*(\\([^)]*\\))?$`, 'i')))) pendingRecords.push({ table:m[1], rows: splitStatements(it.body).filter(s => s.kind === 'line').length });
+      else if(/^DiagramView\b/i.test(h)) { /* layout hint for dbdiagram; nothing to draw here */ }
+      else errors.push(`unrecognized block "${h.slice(0, 40)}"`);
+    } else {
+      const t = it.text;
+      let m;
+      if((m = t.match(new RegExp(`^Ref(?:\\s+(${ID}))?\\s*:\\s*([\\s\\S]+)$`, 'i')))) rawRefs.push({ text:m[2], name:m[1] });
+      else if((m = t.match(/^Dep\s*:\s*([\s\S]+)$/i))) rawDeps.push({ block:false, text:m[1] });
+      else errors.push(`unrecognized line "${t.slice(0, 40)}"`);
+    }
+  }
+
+  // ---- pass 2: tables (partials can be defined before or after use) ----
+  for(const pt of pendingTables){
+    const key = canon(pt.name);
+    const { schema } = splitTableName(key);
+    const t = { name:key, schema, group:'default', fields:[], note:null, alias:null, headercolor:null,
+                props:{}, indexes:[], checks:[], records:0, partials:[], inlineDeps:[] };
+    if(pt.alias){ t.alias = pt.alias.replace(/^"|"$/g, ''); aliases.set(t.alias, key); }
+    applyTableSettings(t, pt.settings);
+    // Columns in declaration order. A table's own column beats a partial's column
+    // of the same name; between partials, the one injected last wins.
+    const stmts = splitStatements(pt.body);
+    const localNames = new Set(stmts.filter(s => s.kind === 'line').map(s => (parseField(s.text) || {}).name).filter(Boolean));
+    const fields = [];
+    const put = f => { const i = fields.findIndex(x => x.name === f.name); if(i < 0) fields.push(f); else fields[i] = f; };
+    for(const st of stmts){
+      if(st.kind === 'block'){ handleTableBlock(t, st); continue; }
+      const s = st.text;
+      let m;
+      if((m = s.match(/^~\s*(\w+)$/))){
+        const p = partials.get(m[1]);
+        if(!p){ errors.push(`table ${key} injects unknown partial ~${m[1]}`); continue; }
+        t.partials.push(m[1]);
+        if(!t.headercolor){ const hc = setting(p.settings, 'headercolor'); if(hc) t.headercolor = hc; }
+        for(const ps of splitStatements(p.body)){
+          if(ps.kind === 'block'){ handleTableBlock(t, ps); continue; }
+          const f = parseField(ps.text);
+          if(f && !localNames.has(f.name)) put(f);
+        }
+        continue;
+      }
+      if((m = s.match(/^note\s*:\s*([\s\S]+)$/i))){ t.note = unquote(m[1]); continue; }
+      const f = parseField(s);
+      if(f) put(f); else errors.push(`${key}: can't read column "${s.slice(0, 40)}"`);
+    }
+    t.fields = fields;
+    if(tables.has(key)) errors.push(`table ${key} defined twice`);
+    tables.set(key, t);
+  }
+
+  function applyTableSettings(t, settings){
+    for(const s of settings){
+      if(s.key === 'headercolor') t.headercolor = s.value;
+      else if(s.key === 'note') t.note = unquote(s.value);
+      else if(s.key === 'dep') t.inlineDeps.push(s.value);
+      else t.props[s.key] = s.value == null ? true : unquote(s.value);
+    }
+  }
+  function handleTableBlock(t, st){
+    const h = st.header.toLowerCase();
+    if(h === 'note') t.note = blockString(st.body);
+    else if(h === 'indexes') splitStatements(st.body).forEach(x => x.kind === 'line' && t.indexes.push(x.text));
+    else if(h === 'checks') splitStatements(st.body).forEach(x => {
+      if(x.kind !== 'line') return;
+      const m = x.text.match(/^`([^`]*)`\s*(\[[\s\S]*\])?$/);
+      if(m) t.checks.push({ expr:m[1], name: unquote(setting(parseSettings(m[2]), 'name')) || null });
+    });
+    else if(h.startsWith('records')) t.records += splitStatements(st.body).filter(x => x.kind === 'line').length;
+    else errors.push(`${t.name}: unrecognized block "${st.header}"`);
+  }
+  function parseField(s, tableKey){
+    const m = s.match(/^("[^"]+"|\w+)\s+("[^"]+"|[\w.]+(?:\s*\([^)]*\))?(?:\s*\[\s*\])?)\s*(\[[\s\S]*\])?$/);
+    if(!m) return null;
+    const settings = parseSettings(m[3]);
+    const f = {
+      name: m[1].replace(/^"|"$/g, ''),
+      type: m[2].replace(/^"|"$/g, '').replace(/\s+/g, ''),
+      pk: hasFlag(settings, 'pk') || hasFlag(settings, 'primary key'),
+      notNull: hasFlag(settings, 'not null'),
+      unique: hasFlag(settings, 'unique'),
+      increment: hasFlag(settings, 'increment'),
+      dflt: setting(settings, 'default') ?? null,
+      check: (setting(settings, 'check') || '').replace(/^`|`$/g, '') || null,
+      note: unquote(setting(settings, 'note')) ?? null,
+      props: {},
+      refs: [], deps: [],
+    };
+    if(/^"/.test(m[2])) f.type = m[2].slice(1, -1);
+    for(const st of settings){
+      if(st.key === 'ref') f.refs.push(st.value);
+      else if(st.key === 'dep') f.deps.push(st.value);
+      else if(!['pk','primary key','not null','null','unique','increment','default','check','note'].includes(st.key)) f.props[st.key] = st.value == null ? true : unquote(st.value);
+    }
+    return f;
+  }
+  function parseEnum(body){
+    return splitStatements(body).filter(s => s.kind === 'line').map(s => {
+      const m = s.text.match(/^("[^"]+"|\S+)\s*(\[[\s\S]*\])?$/);
+      return m ? { value: m[1].replace(/^"|"$/g, ''), note: unquote(setting(parseSettings(m[2]), 'note')) || null } : null;
+    }).filter(Boolean);
+  }
+  function parseProject(name, body){
+    const p = { name: name || null, databaseType:null, note:null };
+    for(const s of splitStatements(body)){
+      if(s.kind === 'block'){ if(/^note$/i.test(s.header)) p.note = blockString(s.body); continue; }
+      const m = s.text.match(/^(\w+)\s*:\s*([\s\S]+)$/);
+      if(!m) continue;
+      if(/^database_type$/i.test(m[1])) p.databaseType = unquote(m[2]);
+      else if(/^note$/i.test(m[1])) p.note = unquote(m[2]);
+    }
+    return p;
+  }
+
+  // ---- name resolution (aliases, public. prefix, table vs table.column) ----
+  const resolveTable = raw => { const k = canon(raw); return tables.has(k) ? k : (aliases.get(k.replace(/^"|"$/g, '')) || null); };
+  // "a.b.c" -> {table, field}; field null if the whole string names a table
+  function resolveEndpoint(raw, wantField){
+    const s = raw.trim();
+    const whole = resolveTable(s);
+    if(whole && !wantField) return { table: whole, field: null };
+    const d = s.lastIndexOf('.');
+    if(d > 0){
+      const tbl = resolveTable(s.slice(0, d));
+      if(tbl) return { table: tbl, field: s.slice(d + 1).replace(/^"|"$/g, '') };
+    }
+    return whole ? { table: whole, field: null } : null;
+  }
+  function checkField(ep, where){
+    const t = tables.get(ep.table);
+    if(ep.field && t && !t.fields.some(f => f.name === ep.field)) errors.push(`${where}: no column ${ep.table}.${ep.field}`);
+  }
+
+  // ---- relationships ----
+  function addRef(text, name, fromInline){
+    // composite: t.(a, b) > u.(c, d)   simple: t.a > u.b   (+ optional ? and [settings])
+    const m = text.match(new RegExp(`^(${QNAME}(?:\\.\\([^)]*\\))?)\\s*(\\?)?(<>|>|<|-)(\\?)?\\s*(${QNAME}(?:\\.\\([^)]*\\))?)\\s*(\\[[\\s\\S]*\\])?$`));
+    if(!m){ errors.push(`can't read relationship "${text.slice(0, 50)}"`); return; }
+    const settings = parseSettings(m[6]);
+    const extra = {
+      name: name ? name.replace(/^"|"$/g, '') : null,
+      color: setting(settings, 'color') || null,
+      inactive: hasFlag(settings, 'inactive'),
+      onDelete: setting(settings, 'delete') || null,
+      onUpdate: setting(settings, 'update') || null,
+    };
+    const [fromCard, toCard] = REF_CARD[m[3]];
+    const sides = [m[1], m[5]].map(side => {
+      const cm = side.match(/^(.*)\.\(([^)]*)\)$/);
+      if(cm) return { table: resolveTable(cm[1]), cols: cm[2].split(',').map(c => c.trim().replace(/^"|"$/g, '')), raw: cm[1] };
+      const ep = resolveEndpoint(side, true);
+      return ep ? { table: ep.table, cols: [ep.field], raw: side } : { table: null, cols: [], raw: side };
+    });
+    if(!sides[0].table || !sides[1].table){ errors.push(`relationship refers to unknown table: ${sides.find(s => !s.table).raw}`); return; }
+    if(sides[0].cols.length !== sides[1].cols.length){ errors.push(`composite relationship column counts differ: ${text.slice(0, 50)}`); return; }
+    sides[0].cols.forEach((c, i) => {
+      const r = { fromT: sides[0].table, fromF: c, toT: sides[1].table, toF: sides[1].cols[i], fromCard, toCard,
+                  fromOpt: !!m[2], toOpt: !!m[4], composite: sides[0].cols.length > 1, ...extra };
+      checkField({ table:r.fromT, field:r.fromF }, 'relationship');
+      checkField({ table:r.toT, field:r.toF }, 'relationship');
+      refs.push(r);
+    });
+  }
+  rawRefs.forEach(r => addRef(r.text, r.name));
+  tables.forEach(t => t.fields.forEach(f => f.refs.forEach(v => addRef(`${t.name}.${f.name} ${v}`, null))));
+
+  // ---- lineage ----
+  const seenDep = new Set();
+  function addDep(upRaw, downRaw, props){
+    const up = typeof upRaw === 'string' ? resolveEndpoint(upRaw, false) : upRaw;
+    const down = typeof downRaw === 'string' ? resolveEndpoint(downRaw, false) : downRaw;
+    if(!up || !down){ errors.push(`lineage refers to unknown table: ${!up ? upRaw : downRaw}`); return; }
+    checkField(up, 'lineage'); checkField(down, 'lineage');
+    const key = `${up.table}.${up.field || '*'}>${down.table}.${down.field || '*'}`;
+    if(seenDep.has(key)) errors.push(`lineage edge repeated: ${key.replace('>', ' -> ').replace(/\.\*/g, '')}`);
+    seenDep.add(key);
+    const d = { fromT: up.table, fromF: up.field, toT: down.table, toF: down.field, note: null, color: null, block: null, ...props };
+    deps.push(d);
+    return d;
+  }
+  // "a -> b" or "b <- a"  (+ optional [settings] on short forms)
+  function readEdge(s){
+    const m = s.match(new RegExp(`^(${QNAME})\\s*(->|<-)\\s*(${QNAME})\\s*(\\[[\\s\\S]*\\])?$`));
+    if(!m) return null;
+    return { up: m[2] === '->' ? m[1] : m[3], down: m[2] === '->' ? m[3] : m[1], settings: parseSettings(m[4]) };
+  }
+  for(const rd of rawDeps){
+    if(!rd.block){
+      const e = readEdge(rd.text.trim());
+      if(!e){ errors.push(`can't read lineage "${rd.text.slice(0, 50)}"`); continue; }
+      const split = splitNoteSql(unquote(setting(e.settings, 'note')));
+      addDep(e.up, e.down, { note: split.note, sql: split.sql, color: setting(e.settings, 'color') || null });
+      continue;
+    }
+    // block: edges + key: value settings (note, query, materialized, owner, custom keys)
+    const block = { name: rd.name, fromTables: [], toTable: null, note: null, sql: null, meta: {}, color: setting(rd.settings, 'color') || null, edges: [] };
+    const edges = [];
+    for(const st of splitStatements(rd.body)){
+      if(st.kind !== 'line') continue;
+      const e = readEdge(st.text);
+      if(e){ edges.push(e); continue; }
+      const kv = st.text.match(/^(\w+)\s*:\s*([\s\S]+)$/);
+      if(!kv){ errors.push(`Dep${rd.name ? ' ' + rd.name : ''}: can't read "${st.text.slice(0, 40)}"`); continue; }
+      const k = kv[1].toLowerCase(), v = unquote(kv[2]);
+      if(k === 'note'){ const sp = splitNoteSql(v); block.note = sp.note; if(sp.sql) block.sql = sp.sql; }
+      else if(k === 'query') block.sql = v;
+      else if(k === 'color') block.color = v;
+      else block.meta[k] = v;
+    }
+    for(const e of edges){
+      const d = addDep(e.up, e.down, { block, color: block.color });
+      if(d) block.edges.push(d);
+    }
+    block.fromTables = [...new Set(block.edges.map(d => d.fromT))];
+    block.toTable = [...new Set(block.edges.map(d => d.toT))].join(', ');
+    block.edges.forEach(d => d.note = block.note);
+  }
+  // inline: table [dep: <- x]  and  column [dep: <- x | -> x]
+  const inlineDir = v => { const m = (v || '').match(/^(<-|->)\s*([\s\S]+)$/); return m ? { dir: m[1], target: m[2].trim() } : null; };
+  tables.forEach(t => {
+    t.inlineDeps.forEach(v => {
+      const x = inlineDir(v); if(!x){ errors.push(`${t.name}: can't read dep "${v}"`); return; }
+      const self = { table: t.name, field: null };
+      x.dir === '<-' ? addDep(x.target, self, {}) : addDep(self, x.target, {});
+    });
+    t.fields.forEach(f => f.deps.forEach(v => {
+      const x = inlineDir(v); if(!x){ errors.push(`${t.name}.${f.name}: can't read dep "${v}"`); return; }
+      const self = { table: t.name, field: f.name };
+      x.dir === '<-' ? addDep(x.target, self, {}) : addDep(self, x.target, {});
+    }));
+  });
+
+  // ---- groups, metadata, records ----
+  for(const g of pendingGroups){
+    const color = setting(g.settings, 'color'); if(color) groupColors[g.name] = color;
+    const note = setting(g.settings, 'note'); if(note) groupNotes[g.name] = unquote(note);
+    for(const st of splitStatements(g.body)){
+      if(st.kind === 'block'){ if(/^note$/i.test(st.header)) groupNotes[g.name] = blockString(st.body); continue; }
+      const nm = st.text.match(/^note\s*:\s*([\s\S]+)$/i);
+      if(nm){ groupNotes[g.name] = unquote(nm[1]); continue; }
+      const key = resolveTable(st.text);
+      if(key) tables.get(key).group = g.name;
+      else errors.push(`TableGroup "${g.name}" lists unknown table "${st.text}"`);
+    }
+  }
+  for(const md of pendingMeta){
+    const key = resolveTable(md.table);
+    if(!key){ errors.push(`Metadata for unknown table ${md.table}`); continue; }
+    splitStatements(md.body).forEach(s => { const m = s.kind === 'line' && s.text.match(/^(\w+)\s*:\s*([\s\S]+)$/); if(m) tables.get(key).props[m[1]] = unquote(m[2]); });
+  }
+  for(const rc of pendingRecords){
+    const key = resolveTable(rc.table);
+    if(key) tables.get(key).records += rc.rows; else errors.push(`records for unknown table ${rc.table}`);
+  }
+
+  return { tables, refs, deps, groupColors, groupNotes, enums, project, stickies, aliases, errors: [...new Set(errors)] };
+}
+
+// ---------- Display graph (applies hidden/collapsed groups) ----------
+const ROW_H = 26, HEAD_H = 30, NODE_W = 220;
+const GROUP_PAD = 22, GROUP_HEAD_H = 30;
+
+function computeDisplay(){
+  const nodes = new Map();
+  model.tables.forEach((t, name) => {
+    if(hiddenGroups.has(t.group) || hiddenSchemas.has(t.schema) || hiddenTables.has(name)) return;
+    if(collapsedGroups.has(t.group)){
+      const gid = 'grp:'+t.group;
+      if(!nodes.has(gid)) nodes.set(gid, { id:gid, kind:'group', group:t.group, members:[] });
+      nodes.get(gid).members.push(name);
+    } else {
+      nodes.set(name, { id:name, kind:'table', group:t.group, table:t });
+    }
+  });
+
+  function idOf(tableName){
+    const t = model.tables.get(tableName);
+    if(!t) return null;
+    if(hiddenGroups.has(t.group) || hiddenSchemas.has(t.schema) || hiddenTables.has(tableName)) return null;
+    return collapsedGroups.has(t.group) ? 'grp:'+t.group : tableName;
+  }
+
+  const edges = [];
+  function pushEdges(list, kind){
+    list.forEach(e => {
+      const fid = idOf(e.fromT), tid = idOf(e.toT);
+      if(!fid || !tid || fid === tid) return;
+      edges.push({
+        fromId: fid, fromField: fid === e.fromT ? e.fromF : null,
+        toId: tid, toField: tid === e.toT ? e.toF : null,
+        kind, note: e.note, orig: e
+      });
+    });
+  }
+  pushEdges(model.refs, 'ref');
+  pushEdges(model.deps, 'dep');
+
+  // sticky notes: free-floating cards, no edges
+  (model.stickies || []).forEach(s => nodes.set('note:' + s.name, { id:'note:' + s.name, kind:'sticky', group:'default', sticky:s }));
+
+  return { nodes, edges, idOf };
+}
+
+// Width from content (monospace, so character counts are a good estimate):
+// wide enough for the longest header and the longest "name ... type" row.
+// ---------- Detail level: All columns, or Keys only ----------
+// A key = primary key (incl. composite PKs declared in indexes { (a, b) [pk] })
+// or either end of a relationship — same definition dbdiagram's "Keys" level uses.
+function computeKeyCols(m){
+  const keys = new Set(), pks = new Set();
+  m.tables.forEach(t => {
+    t.fields.forEach(f => { if(f.pk) pks.add(t.name + '.' + f.name); });
+    t.indexes.forEach(ix => {
+      const mm = ix.match(/^(\([^)]*\)|"[^"]+"|\w+)\s*\[([^\]]*)\]\s*$/);
+      if(!mm || !/(^|,)\s*pk\s*(,|$)/i.test(mm[2])) return;
+      mm[1].replace(/^\(|\)$/g, '').split(',').forEach(c => pks.add(t.name + '.' + c.trim().replace(/^"|"$/g, '')));
+    });
+  });
+  pks.forEach(k => keys.add(k));
+  m.refs.forEach(r => { keys.add(r.fromT + '.' + r.fromF); keys.add(r.toT + '.' + r.toF); });
+  return { keys, pks };
+}
+const isPkCol = (t, f) => f.pk || (model.pkCols && model.pkCols.has(t.name + '.' + f.name));
+function shownFields(t){
+  return detailLevel === 'keys' && model.keyCols ? t.fields.filter(f => model.keyCols.has(t.name + '.' + f.name)) : t.fields;
+}
+function rowCount(t){
+  const shown = shownFields(t).length, hidden = t.fields.length - shown;
+  return Math.max(1, shown + (hidden > 0 ? 1 : 0));
+}
+
+function nodeWidth(n){
+  if(n.kind !== 'table') return NODE_W;
+  const t = n.table;
+  const head = t.name.length * 7.9 + n.group.length * 6.3 + (t.note ? 14 : 0) + 38;
+  let row = 0;
+  shownFields(t).forEach(f => {
+    const w = (f.name.length + f.type.length) * 7.1 + (f.pk ? 18 : 0) + (f.note ? 14 : 0) + (f.notNull ? 26 : 0) + 34;
+    if(w > row) row = w;
+  });
+  return Math.round(Math.min(440, Math.max(NODE_W, head, row)));
+}
+
+function layout(display){
+  // compound graph: each Table Group is a parent cluster, so dagre keeps its
+  // members together and keeps different groups' boxes from overlapping
+  const g = new dagre.graphlib.Graph({ compound: true });
+  g.setGraph({ rankdir:'LR', nodesep: 46, ranksep: 110, marginx: 60, marginy: 70 });
+  g.setDefaultEdgeLabel(()=>({}));
+
+  display.nodes.forEach((n, id) => {
+    const h = n.kind === 'table' ? HEAD_H + rowCount(n.table) * ROW_H
+      : n.kind === 'sticky' ? 34 + (n.sticky.text || '').split('\n').length * 17
+      : HEAD_H + Math.max(Math.min(n.members.length,7),1) * ROW_H + 4;
+    g.setNode(id, { width: nodeWidth(n), height: h });
+  });
+  display.nodes.forEach((n, id) => {
+    if(n.kind === 'table' && n.group !== 'default'){
+      const cid = 'cluster:' + n.group;
+      if(!g.hasNode(cid)) g.setNode(cid, {});
+      g.setParent(id, cid);
+    }
+  });
+  display.edges.forEach(e => { if(e.fromId !== e.toId) g.setEdge(e.fromId, e.toId); });
+
+  dagre.layout(g);
+
+  const positions = {};
+  g.nodes().forEach(id => {
+    if(id.startsWith('cluster:')) return;
+    const node = g.node(id);
+    const auto = { x: node.x - node.width/2, y: node.y - node.height/2, width: node.width, height: node.height };
+    if(manualPos[id]) positions[id] = { ...auto, x: manualPos[id].x, y: manualPos[id].y };
+    else positions[id] = auto;
+  });
+  return positions;
+}
+
+// ---------- Rendering ----------
+const groupColorVar = { source:'--g-source', staging:'--g-staging', mart:'--g-mart' };
+function groupColor(group){
+  if(groupColorOverrides[group]) return groupColorOverrides[group];
+  if(model.groupColors && model.groupColors[group]) return model.groupColors[group];
+  const varName = groupColorVar[group];
+  return varName ? getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
+                 : getComputedStyle(document.documentElement).getPropertyValue('--g-default').trim();
+}
+function toHex(colorStr){
+  colorStr = (colorStr||'').trim();
+  if(colorStr[0] === '#'){
+    if(colorStr.length === 4) return '#'+[...colorStr.slice(1)].map(c=>c+c).join('');
+    return colorStr.slice(0,7);
+  }
+  const nums = colorStr.match(/\d+/g);
+  if(!nums) return '#888888';
+  return '#'+nums.slice(0,3).map(n => Math.max(0,Math.min(255,+n)).toString(16).padStart(2,'0')).join('');
+}
+function applyGroupColorLive(key, hex){
+  document.querySelectorAll(`.node[data-group="${key}"]:not([data-hc]) > .head`).forEach(h => h.style.background = hex);
+  document.querySelectorAll(`.tree-swatch[data-swatch-key="${key}"]`).forEach(s => s.style.background = hex);
+}
+
+let model = { tables:new Map(), refs:[], deps:[] };
+let currentDisplay = { nodes:new Map(), edges:[], idOf:()=>null };
+let positions = {};
+let mode = 'both';
+let scale = 1;
+let traceState = null;
+let hoverBlocks = [];
+let flowOverlays = [];
+let highlightAll = false;
+let detailLevel = 'all'; // 'all' | 'keys'
+let hiddenGroups = new Set();
+let hiddenSchemas = new Set();
+let hiddenTables = new Set();
+let collapsedGroups = new Set();
+let treeCollapsed = new Set();
+let treeGroupBy = 'group'; // 'group' | 'schema'
+let manualPos = {};
+let groupColorOverrides = {};
+
+const nodesEl = document.getElementById('nodes');
+const edgesSvg = document.getElementById('edges');
+const viewport = document.getElementById('viewport');
+const statusEl = document.getElementById('status');
+const legendEl = document.getElementById('legend');
+const tracebar = document.getElementById('tracebar');
+const tracepath = document.getElementById('tracepath');
+
+function nodeFieldY(id, field){
+  const pos = positions[id];
+  if(!pos) return null;
+  if(id.indexOf('grp:') === 0) return pos.y + pos.height/2;
+  const t = model.tables.get(id);
+  if(!t || !field) return pos.y + HEAD_H/2;
+  const idx = shownFields(t).findIndex(f => f.name === field); // hidden in Keys mode -> attach at the header
+  return pos.y + HEAD_H + (idx >= 0 ? idx*ROW_H + ROW_H/2 : -HEAD_H/2);
+}
+
+function edgePath(fromId, fromField, toId, toField){
+  const p1 = positions[fromId], p2 = positions[toId];
+  if(!p1 || !p2) return null;
+  const y1 = nodeFieldY(fromId, fromField), y2 = nodeFieldY(toId, toField);
+  const x1 = p1.x + p1.width, x2 = p2.x;
+  const dx = Math.max(60, Math.abs(x2-x1)/2);
+  let sx=x1, sy=y1, ex=x2, ey=y2, c1x, c2x;
+  if(x2 < x1){
+    sx = p1.x; ex = p2.x + p2.width;
+    c1x = sx - dx; c2x = ex + dx;
+  } else {
+    c1x = sx + dx; c2x = ex - dx;
+  }
+  return `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ey}, ${ex} ${ey}`;
+}
+
+// Ref edges route as right-angle "elbow" connectors (a vertical trunk with two
+// bends) instead of Dep's smooth curve — that's the visual cue that separates
+// a real FK relationship from a lineage edge, on top of color and dash style.
+function refPath(fromId, fromField, toId, toField, dy1 = 0, dy2 = 0){
+  const p1 = positions[fromId], p2 = positions[toId];
+  if(!p1 || !p2) return null;
+  const y1 = nodeFieldY(fromId, fromField) + dy1, y2 = nodeFieldY(toId, toField) + dy2;
+  const x1 = p1.x + p1.width, x2 = p2.x;
+  // dir = which way is "outward" from that table edge along the line (+1 right, -1 left)
+  let sx, ex, sDir, eDir;
+  if(x2 < x1){ sx = p1.x; ex = p2.x + p2.width; sDir = -1; eDir = 1; }
+  else { sx = x1; ex = x2; sDir = 1; eDir = -1; }
+  const midX = (sx + ex) / 2;
+  const path = `M ${sx} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${ex} ${y2}`;
+  return { path, joints: [[midX, y1], [midX, y2]], start:{x:sx, y:y1, dir:sDir}, end:{x:ex, y:y2, dir:eDir} };
+}
+
+// Crow's-foot notation at a table edge:
+//   one            = bar            "1"
+//   zero-or-one    = circle + bar   "0..1"
+//   many           = crow's foot    "*"
+//   zero-or-many   = circle + crow  "0..*"
+function cardinalityMarkerSvg(pt, card, optional, dim, color, labelBelow){
+  const { x, y, dir } = pt;
+  const op = dim ? 0.12 : 1;
+  let s = '';
+  if(card === 'one'){
+    const tx = x + dir*6;
+    s += `<line x1="${tx}" y1="${y-6}" x2="${tx}" y2="${y+6}" stroke="${color}" stroke-width="1.8" opacity="${op}"/>`;
+  } else {
+    const bx = x + dir*12, tx = x + dir*1;
+    s += `<path d="M ${bx} ${y} L ${tx} ${y-7} M ${bx} ${y} L ${tx} ${y} M ${bx} ${y} L ${tx} ${y+7}" stroke="${color}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="${op}"/>`;
+  }
+  if(optional){
+    // the "zero" circle sits just outside the bar / crow's foot
+    s += `<circle cx="${x + dir*18}" cy="${y}" r="3.5" fill="var(--bg)" stroke="${color}" stroke-width="1.5" opacity="${op}"/>`;
+  }
+  const label = (optional ? '0..' : '') + (card === 'one' ? '1' : '*');
+  const labelX = x + dir*(optional ? 20 : (card === 'one' ? 14 : 18));
+  s += `<text x="${labelX}" y="${labelBelow ? y + 16 : y - 8}" class="card-label" style="fill:${color}" text-anchor="middle" opacity="${op}">${label}</text>`;
+  return s;
+}
+
+// A line takes the header color of its source table (a merged group card has a group too).
+// A table's header color: its own [headercolor] wins, else its group's color.
+function nodeColor(n){
+  return (n.kind === 'table' && n.table.headercolor) || groupColor(n.group);
+}
+// An explicit [color: ...] on the Ref / Dep wins; otherwise the source table's color.
+function edgeColor(e){
+  if(e.orig && e.orig.color) return e.orig.color;
+  const n = currentDisplay.nodes.get(e.fromId);
+  return n ? nodeColor(n) : (e.kind === 'ref' ? 'var(--edge-ref)' : 'var(--edge-dep)');
+}
+
+function computeGroupBoxes(){
+  const byGroup = new Map();
+  currentDisplay.nodes.forEach((n, id) => {
+    if(n.kind === 'table' && n.group !== 'default'){
+      if(!byGroup.has(n.group)) byGroup.set(n.group, []);
+      byGroup.get(n.group).push(id);
+    }
+  });
+  const boxes = new Map();
+  byGroup.forEach((memberIds, g) => {
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+    memberIds.forEach(id => {
+      const p = positions[id];
+      if(!p) return;
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x+p.width); maxY = Math.max(maxY, p.y+p.height);
+    });
+    if(minX === Infinity) return;
+    boxes.set(g, {
+      x: minX - GROUP_PAD, y: minY - GROUP_HEAD_H - GROUP_PAD,
+      width: (maxX-minX) + GROUP_PAD*2, height: (maxY-minY) + GROUP_HEAD_H + GROUP_PAD*2
+    });
+  });
+  return boxes;
+}
+
+const groupBoxesEl = document.getElementById('groupBoxes');
+function renderGroupBoxes(){
+  const boxes = computeGroupBoxes();
+  let html = '';
+  boxes.forEach((box, g) => {
+    const color = groupColor(g);
+    const collapsedInDiagram = collapsedGroups.has(g);
+    html += `<div class="group-box" data-group="${g}" title="drag to move the whole group" style="left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px;--gbc:${color}">
+      <div class="group-box-head">
+        <button class="group-box-chevron" data-group="${g}" title="${collapsedInDiagram?'split back into separate tables':'merge this group into one summary node'}">▾</button>
+        <span>${g}</span>
+        <button class="group-box-palette" data-group="${esc(g)}" title="change group color" aria-label="change color of ${esc(g)}">
+          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14c.9 0 1.5-.6 1.5-1.4 0-.4-.2-.7-.4-1-.2-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4H12a3 3 0 0 0 3-3C15 3.7 11.9 1 8 1Zm-3.8 7.3a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Zm1.9-3.5a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Zm3.8 0a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Zm2.3 2.3a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z"/></svg>
+        </button>
+      </div>
+    </div>`;
+  });
+  groupBoxesEl.innerHTML = html;
+  groupBoxesEl.querySelectorAll('.group-box-palette').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openColorPop(btn.dataset.group, btn); });
+  });
+  groupBoxesEl.querySelectorAll('.group-box-chevron').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const g = btn.dataset.group;
+      collapsedGroups.has(g) ? collapsedGroups.delete(g) : collapsedGroups.add(g);
+      render(); persistState();
+    });
+  });
+  groupBoxesEl.querySelectorAll('.group-box').forEach(box => {
+    box.addEventListener('mousedown', (e) => startGroupDrag(e, box.dataset.group));
+  });
+}
+
+// ---------- Group color popover (palette button on a group box) ----------
+// Theme palette (all readable with white header text), colors already on the
+// canvas, and a custom hex. Writes the same override as the right-panel swatch.
+const THEME_COLORS = [
+  '#2f5fd8', '#4a78b0', '#1e2a52', '#1f9d8b', '#3b6e77',
+  '#2f5d3a', '#5a9e4b', '#d99a2b', '#e0712f', '#7c83d6',
+  '#a33a3a', '#d1477a', '#c054b8', '#5b3cc4', '#8b5cf6',
+];
+const colorPopEl = document.getElementById('colorPop');
+let colorPopGroup = null;
+
+function normHex(v){
+  let s = (v || '').trim().toLowerCase();
+  if(!s.startsWith('#')) s = '#' + s;
+  if(/^#[0-9a-f]{3}$/.test(s)) s = '#' + [...s.slice(1)].map(c => c + c).join('');
+  return /^#[0-9a-f]{6}$/.test(s) ? s : null;
+}
+function colorsInUse(){
+  const set = new Set();
+  const groups = new Set([...model.tables.values()].map(t => t.group).filter(g => g !== 'default'));
+  groups.forEach(g => set.add(toHex(groupColor(g)).toLowerCase()));
+  model.tables.forEach(t => { if(t.headercolor){ const h = normHex(t.headercolor); if(h) set.add(h); } });
+  return [...set];
+}
+function renderColorPop(){
+  const g = colorPopGroup;
+  const current = toHex(groupColor(g)).toLowerCase();
+  const sw = c => `<button class="cp-sw${c === current ? ' sel' : ''}" data-color="${c}" style="background:${c}" aria-label="${c}" title="${c}"></button>`;
+  colorPopEl.innerHTML = `
+    <div class="cp-label">Theme</div>
+    <div class="cp-grid">${THEME_COLORS.map(sw).join('')}</div>
+    <div class="cp-label">Currently used</div>
+    <div class="cp-grid">${colorsInUse().map(sw).join('')}</div>
+    <div class="cp-label">Custom</div>
+    <div class="cp-custom">
+      <input id="cpHex" type="text" value="${current}" spellcheck="false" autocomplete="off" aria-label="hex color">
+      <button id="cpApply">Apply</button>
+    </div>
+    <div class="cp-err" id="cpErr" aria-live="polite"></div>
+    ${groupColorOverrides[g] ? '<button class="cp-reset" id="cpReset">Reset to the color in the file</button>' : ''}`;
+  colorPopEl.querySelectorAll('.cp-sw').forEach(b => b.addEventListener('click', () => applyGroupColor(g, b.dataset.color)));
+  const input = colorPopEl.querySelector('#cpHex');
+  const tryApply = () => {
+    const hex = normHex(input.value);
+    if(!hex){ input.setAttribute('aria-invalid', 'true'); colorPopEl.querySelector('#cpErr').textContent = 'Use a hex color like #3a6df0 or #36f.'; return; }
+    applyGroupColor(g, hex);
+  };
+  colorPopEl.querySelector('#cpApply').addEventListener('click', tryApply);
+  input.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); tryApply(); } });
+  // focusing the field selects it, so typing replaces the old value
+  input.addEventListener('focus', () => input.select());
+  input.addEventListener('mouseup', e => { if(input.selectionStart === input.selectionEnd && !input.dataset.selOnce){ e.preventDefault(); input.select(); input.dataset.selOnce = '1'; } });
+  input.addEventListener('blur', () => { delete input.dataset.selOnce; });
+  input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); colorPopEl.querySelector('#cpErr').textContent = ''; });
+  const reset = colorPopEl.querySelector('#cpReset');
+  if(reset) reset.addEventListener('click', () => { delete groupColorOverrides[g]; render(); persistState(); renderColorPop(); });
+}
+function applyGroupColor(g, hex){
+  groupColorOverrides[g] = hex;
+  render(); persistState();
+  renderColorPop();
+  const sel = colorPopEl.querySelector('.cp-sw.sel');
+  if(sel && document.activeElement !== colorPopEl.querySelector('#cpHex')) sel.focus();
+}
+function openColorPop(g, anchorEl){
+  colorPopGroup = g;
+  renderColorPop();
+  colorPopEl.hidden = false;
+  const r = anchorEl.getBoundingClientRect();
+  const w = colorPopEl.offsetWidth, hgt = colorPopEl.offsetHeight;
+  const left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+  const top = r.bottom + 6 + hgt > window.innerHeight - 8 ? Math.max(8, r.top - hgt - 6) : r.bottom + 6;
+  colorPopEl.style.left = left + 'px';
+  colorPopEl.style.top = top + 'px';
+  (colorPopEl.querySelector('.cp-sw.sel') || colorPopEl.querySelector('.cp-sw')).focus();
+}
+function closeColorPop(){ colorPopEl.hidden = true; colorPopGroup = null; }
+document.addEventListener('mousedown', e => {
+  if(!colorPopEl.hidden && !colorPopEl.contains(e.target) && !e.target.closest('.group-box-palette')) closeColorPop();
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !colorPopEl.hidden) closeColorPop(); });
+
+// Dragging a group box moves every visible member table by the same delta,
+// so their positions relative to each other never change.
+function startGroupDrag(e, g){
+  if(e.button !== 0 || e.target.closest('.group-box-head button')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const members = [];
+  currentDisplay.nodes.forEach((n, id) => {
+    if(n.kind === 'table' && n.group === g && positions[id]){
+      const el = nodesEl.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+      members.push({ id, el, pos: positions[id], ox: positions[id].x, oy: positions[id].y });
+    }
+  });
+  if(!members.length) return;
+  const startX = e.clientX, startY = e.clientY;
+
+  function onMove(ev){
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    members.forEach(mb => {
+      mb.pos.x = mb.ox + dx;
+      mb.pos.y = mb.oy + dy;
+      if(mb.el){ mb.el.style.left = mb.pos.x + 'px'; mb.el.style.top = mb.pos.y + 'px'; }
+      manualPos[mb.id] = { x: mb.pos.x, y: mb.pos.y };
+    });
+    drawEdges();
+    renderGroupBoxes();
+  }
+  function onUp(){
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    persistState();
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
+function render(){
+  currentDisplay = computeDisplay();
+  positions = layout(currentDisplay);
+
+  nodesEl.innerHTML = '';
+  let maxX=0, maxY=0;
+
+  currentDisplay.nodes.forEach((n, id) => {
+    const pos = positions[id];
+    if(!pos) return;
+    maxX = Math.max(maxX, pos.x + pos.width);
+    maxY = Math.max(maxY, pos.y + pos.height);
+    const div = document.createElement('div');
+    div.className = 'node' + (n.kind === 'group' ? ' group-node' : '');
+    div.style.left = pos.x + 'px';
+    div.style.top = pos.y + 'px';
+    div.style.width = pos.width + 'px';
+    div.dataset.id = id;
+    div.dataset.group = n.group;
+    if(n.kind === 'table' && n.table.headercolor) div.dataset.hc = '1';
+    const color = nodeColor(n);
+
+    if(n.kind === 'table'){
+      const noteIcon = '<span class="note-icon" aria-label="has a note"></span>';
+      let html = `<div class="head" data-table="${esc(id)}" style="background:${color}"><span>${esc(id)}${n.table.note ? noteIcon : ''}</span><span style="opacity:.75;font-size:10px;font-weight:600">${esc(n.group)}</span></div>`;
+      if(n.table.fields.length === 0){
+        html += `<div class="row dim"><span class="fname">(no fields)</span></div>`;
+      }
+      const shown = shownFields(n.table);
+      shown.forEach(f => {
+        html += `<div class="row" data-table="${esc(id)}" data-field="${esc(f.name)}">
+          <span class="fname">${isPkCol(n.table, f) ? '<span class="pk">🔑</span>' : ''}${esc(f.name)}${f.note ? noteIcon : ''}</span>
+          <span class="ftype">${esc(f.type)}${f.notNull ? '<span class="nn-badge">NN</span>' : ''}</span>
+        </div>`;
+      });
+      const hiddenCols = n.table.fields.filter(f => !shown.includes(f));
+      if(hiddenCols.length){
+        html += `<div class="row dim hidden-fields" title="${esc('hidden: ' + hiddenCols.map(f => f.name).join(', '))}"><span class="fname">+${hiddenCols.length} hidden field${hiddenCols.length > 1 ? 's' : ''}</span></div>`;
+      }
+      div.innerHTML = html;
+    } else if(n.kind === 'sticky'){
+      const bg = !n.sticky.color || n.sticky.color === 'none' ? 'var(--panel)' : n.sticky.color;
+      div.className = 'node sticky-node';
+      div.style.background = bg;
+      if(bg === 'var(--panel)') div.style.color = 'var(--text)';
+      div.innerHTML = `<div class="sticky-name">${esc(n.sticky.name)}</div><div class="sticky-text">${esc(n.sticky.text || '')}</div>`;
+    } else {
+      let html = `<div class="head" style="background:${color}">
+        <span>▸ ${n.group} <span style="opacity:.75;font-weight:500">(${n.members.length} tables)</span></span>
+        <button class="expand-btn" data-group="${n.group}" title="expand this group back out">expand ⤢</button>
+      </div>`;
+      n.members.slice(0,7).forEach(mName => {
+        html += `<div class="row dim" style="cursor:default"><span class="fname">${mName}</span></div>`;
+      });
+      if(n.members.length > 7) html += `<div class="row dim" style="cursor:default"><span class="fname">+${n.members.length-7} more…</span></div>`;
+      div.innerHTML = html;
+    }
+
+    nodesEl.appendChild(div);
+    makeDraggable(div, id);
+  });
+
+  renderGroupBoxes();
+
+  viewport.style.width = (maxX+60+GROUP_PAD)+'px';
+  viewport.style.height = (maxY+60+GROUP_PAD)+'px';
+  edgesSvg.setAttribute('width', maxX+60+GROUP_PAD);
+  edgesSvg.setAttribute('height', maxY+60+GROUP_PAD);
+
+  drawEdges();
+  bindRowClicks();
+  bindHoverCards();
+  bindExpandButtons();
+  renderLegend();
+  renderTree();
+}
+
+function drawEdges(){
+  const refShow = mode === 'both' || mode === 'ref';
+  const depShow = mode === 'both' || mode === 'dep';
+  let svg = '';
+  // one arrowhead marker per distinct line color
+  const arrowIds = new Map();
+  function arrowFor(color){
+    if(!arrowIds.has(color)) arrowIds.set(color, 'arrow-' + arrowIds.size);
+    return arrowIds.get(color);
+  }
+
+  // Several Ref lines often land on the same column (a PK referenced by many FKs).
+  // Fan them out within the row so markers and 1 / 0..1 / * labels don't pile up.
+  const portTotal = new Map(), portNext = new Map();
+  const portKey = (id, f) => id + '|' + f;
+  if(refShow) currentDisplay.edges.forEach(e => {
+    if(e.kind !== 'ref') return;
+    [portKey(e.fromId, e.fromField), portKey(e.toId, e.toField)].forEach(k => portTotal.set(k, (portTotal.get(k) || 0) + 1));
+  });
+  function takeSlot(id, f){
+    const k = portKey(id, f), n = portTotal.get(k) || 1, i = portNext.get(k) || 0;
+    portNext.set(k, i + 1);
+    const gap = Math.min(12, 20 / Math.max(n - 1, 1));
+    const dy = n > 1 ? (i - (n - 1) / 2) * gap : 0;
+    return { dy, below: n > 1 && dy > 0 };
+  }
+
+  hoverBlocks = [];
+  const depPairs = new Map();
+  currentDisplay.edges.forEach(e => {
+    if(e.kind === 'ref' && !refShow) return;
+    if(e.kind === 'dep' && !depShow) return;
+    const hit = traceState && e.kind === 'dep' && traceState.edgeSet.has(e.orig);
+    const dim = traceState && !hit;
+    const color = edgeColor(e);
+
+    if(e.kind === 'ref'){
+      const s1 = takeSlot(e.fromId, e.fromField), s2 = takeSlot(e.toId, e.toField);
+      const r = refPath(e.fromId, e.fromField, e.toId, e.toField, s1.dy, s2.dy);
+      if(!r) return;
+      // [inactive]: documented but not enforced — drawn faint and dotted
+      const inactive = e.orig.inactive;
+      svg += `<path d="${r.path}" fill="none" stroke="${color}" stroke-width="1.6"${inactive ? ' stroke-dasharray="2,4"' : ''} opacity="${dim ? 0.12 : inactive ? 0.45 : 1}"/>`;
+      r.joints.forEach(([jx,jy]) => {
+        svg += `<circle cx="${jx}" cy="${jy}" r="2.5" fill="${color}" opacity="${dim?0.12:1}"/>`;
+      });
+      // cardinality only means something at a real table edge, not a collapsed group card
+      if(e.fromField && e.orig.fromCard) svg += cardinalityMarkerSvg(r.start, e.orig.fromCard, e.orig.fromOpt, dim, color, s1.below);
+      if(e.toField && e.orig.toCard) svg += cardinalityMarkerSvg(r.end, e.orig.toCard, e.orig.toOpt, dim, color, s2.below);
+      // path is drawn from -> to; flip the flow when "from" is the many side so dots always run one -> many
+      const reverse = e.orig.fromCard === 'many' && e.orig.toCard === 'one' ? '1' : '0';
+      svg += `<path class="ref-hit" data-reverse="${reverse}" data-color="${color}" d="${r.path}" fill="none" stroke="transparent" stroke-width="14" style="pointer-events:stroke;cursor:pointer"/>`;
+    } else {
+      // Lineage is shown at TABLE level by default: collect every column mapping
+      // per source-table -> target-table pair and draw one header-to-header line
+      // below. Column-level lines only appear on column hover, or for a traced path.
+      if(hit){
+        const d = edgePath(e.fromId, e.fromField, e.toId, e.toField);
+        if(d) svg += `<path d="${d}" fill="none" stroke="var(--edge-dep-glow)" stroke-width="2.8" marker-end="url(#${arrowFor('var(--edge-dep-glow)')})"/>`;
+      }
+      const k = e.fromId + '→' + e.toId;
+      if(!depPairs.has(k)) depPairs.set(k, []);
+      depPairs.get(k).push(e);
+    }
+  });
+
+  depPairs.forEach(list => {
+    const e0 = list[0];
+    const d = edgePath(e0.fromId, null, e0.toId, null);
+    if(!d) return;
+    const color = edgeColor(e0);
+    const dim = !!traceState; // while tracing, table-level lines recede behind the traced column path
+    svg += `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.8" stroke-dasharray="6,4" marker-end="url(#${arrowFor(color)})" opacity="${dim?0.15:1}"/>`;
+    // invisible fat hit-path: hovering the table line opens a card with every
+    // column mapping between these two tables (plus note / SQL)
+    const blockIdx = hoverBlocks.length;
+    hoverBlocks.push(pairBlock(list));
+    svg += `<path class="dep-hit" data-block-idx="${blockIdx}" data-color="${color}" data-pair="${esc(e0.fromId)}>${esc(e0.toId)}" d="${d}" fill="none" stroke="transparent" stroke-width="16" style="pointer-events:stroke;cursor:help"/>`;
+  });
+
+  let defs = '<defs>';
+  arrowIds.forEach((id, color) => {
+    defs += `<marker id="${id}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="${color}"/></marker>`;
+  });
+  svg = defs + '</defs>' + svg;
+
+  edgesSvg.innerHTML = svg;
+  flowOverlays = [];
+  edgesSvg.querySelectorAll('.dep-hit').forEach(el => {
+    const block = hoverBlocks[+el.dataset.blockIdx];
+    el.addEventListener('mouseenter', (ev) => { showEdgeFlow(el, 'dep'); showDepTooltip(block, ev); });
+    el.addEventListener('mousemove', (ev) => positionDepTooltip(ev));
+    el.addEventListener('mouseleave', () => { hideEdgeFlow(); hideDepTooltipSoon(); });
+  });
+  edgesSvg.querySelectorAll('.ref-hit').forEach(el => {
+    el.addEventListener('mouseenter', () => showEdgeFlow(el, 'ref'));
+    el.addEventListener('mouseleave', hideEdgeFlow);
+  });
+  renderFlowAll();
+
+  document.querySelectorAll('.node').forEach(n => {
+    const id = n.dataset.id;
+    if(!traceState){ n.classList.remove('dim','trace-hit'); }
+    else if(traceState.displayIdSet.has(id)){ n.classList.remove('dim'); n.classList.add('trace-hit'); }
+    else { n.classList.add('dim'); n.classList.remove('trace-hit'); }
+  });
+  document.querySelectorAll('.row[data-field]').forEach(r => {
+    const key = r.dataset.table+'.'+r.dataset.field;
+    if(!traceState){ r.classList.remove('trace-hit'); return; }
+    if(traceState.fieldSet.has(key)) r.classList.add('trace-hit'); else r.classList.remove('trace-hit');
+  });
+}
+
+// ---------- Hover highlight: a thicker overlay with dots flowing along the line ----------
+// Dep: dashes flow source -> target. Ref: dots flow one -> many.
+function makeFlowEl(hitEl, kind, glow){
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  el.setAttribute('d', hitEl.getAttribute('d'));
+  let cls = 'edge-flow ' + (kind === 'ref' ? 'ref-flow' : 'dep-flow');
+  if(hitEl.dataset.reverse === '1') cls += ' flow-reverse';
+  if(!glow) cls += ' flow-all';
+  el.setAttribute('class', cls);
+  const c = hitEl.dataset.color;
+  if(c){ el.style.stroke = c; if(glow) el.style.filter = `drop-shadow(0 0 3px ${c})`; }
+  return el;
+}
+function showEdgeFlow(hitEl, kind, keepOthers){
+  if(!keepOthers) hideEdgeFlow();
+  const el = makeFlowEl(hitEl, kind, true);
+  hitEl.parentNode.insertBefore(el, hitEl);
+  flowOverlays.push(el);
+}
+
+// "Highlight all lines" toggle: every visible line animates at once. Lighter than
+// the hover highlight (no glow) so hovering a line still stands out on top of it.
+// Paused while a column trace is shown, so the traced path stays the focus.
+function renderFlowAll(){
+  if(!highlightAll || traceState) return;
+  edgesSvg.querySelectorAll('.ref-hit, .dep-hit').forEach(hit => {
+    hit.parentNode.insertBefore(makeFlowEl(hit, hit.classList.contains('ref-hit') ? 'ref' : 'dep', false), hit);
+  });
+}
+function setHighlightAll(on){
+  highlightAll = on;
+  const b = document.getElementById('flowAllBtn');
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.classList.toggle('on', on);
+  try{ localStorage.setItem('lineage-highlight-all', on ? '1' : '0'); }catch(_){}
+  drawEdges();
+}
+function hideEdgeFlow(){
+  flowOverlays.forEach(el => el.remove());
+  flowOverlays = [];
+}
+
+// Card content for one table-level line. If every mapping between the two tables
+// comes from a single Dep block, show that block as written (its note + SQL);
+// otherwise merge the pieces (e.g. inline deps, or several blocks).
+function pairBlock(list){
+  const origs = list.map(e => e.orig);
+  const blocks = [...new Set(origs.map(o => o.block))];
+  if(blocks.length === 1 && blocks[0]) return blocks[0];
+  const realBlocks = blocks.filter(Boolean);
+  const notes = [...new Set(origs.map(o => o.note).filter(Boolean))];
+  const sqls = [...new Set([...realBlocks.map(b => b.sql), ...origs.map(o => o.sql)].filter(Boolean))];
+  return {
+    name: realBlocks.map(b => b.name).filter(Boolean).join(' + ') || null,
+    meta: Object.assign({}, ...realBlocks.map(b => b.meta || {})),
+    fromTables: [...new Set(origs.map(o => o.fromT))],
+    toTable: [...new Set(origs.map(o => o.toT))].join(', '),
+    note: notes.join('\n\n') || null,
+    sql: sqls.join('\n\n') || null,
+    edges: origs,
+  };
+}
+
+// Draw a flowing overlay for any path (used for column-level lines, which
+// aren't in the diagram until a column is hovered).
+function addFlowPath(d, kind, color){
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  el.setAttribute('d', d);
+  el.setAttribute('class', 'edge-flow ' + (kind === 'ref' ? 'ref-flow' : 'dep-flow'));
+  if(color){ el.style.stroke = color; el.style.filter = `drop-shadow(0 0 3px ${color})`; }
+  edgesSvg.appendChild(el);
+  flowOverlays.push(el);
+}
+
+// Hovering a column reveals its column-level lineage, one hop each way: every Dep
+// coming into it (incl. a whole-table Dep into its table) and every one leaving it.
+function highlightColumnLines(table, field){
+  hideEdgeFlow();
+  if(mode === 'ref') return;
+  currentDisplay.edges.forEach(e => {
+    if(e.kind !== 'dep') return;
+    const o = e.orig;
+    const upstream = o.toT === table && (o.toF === field || !o.toF);
+    const downstream = o.fromT === table && o.fromF === field;
+    if(!upstream && !downstream) return;
+    const d = edgePath(e.fromId, e.fromField, e.toId, e.toField);
+    if(d) addFlowPath(d, 'dep', edgeColor(e));
+  });
+}
+
+// ---------- Dep line hover tooltip (source/target, note, embedded SQL, column list) ----------
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+const depTooltipEl = document.getElementById('depTooltip');
+let depTooltipHideTimer = null;
+
+function depTooltipHTML(block){
+  let html = `<div class="dt-head">
+    ${block.name ? `<div class="dt-colhead"><span class="dt-colname">${esc(block.name)}</span></div>` : ''}
+    <div class="dt-from">${esc(block.fromTables.join(', '))}</div>
+    <div class="dt-arrow">↳ ${esc(block.toTable)}</div>
+  </div>`;
+  if(block.note){
+    html += `<div class="dt-section"><div class="dt-label">Note</div><div class="dt-note">${esc(block.note)}</div></div>`;
+  }
+  // named Dep blocks carry settings like materialized / owner / any custom key
+  const meta = Object.entries(block.meta || {});
+  if(meta.length){
+    html += `<div class="dt-section"><div class="dt-label">Metadata</div><ul class="dt-cols">${meta.map(([k, v]) => `<li>${esc(k)}: <b>${esc(v)}</b></li>`).join('')}</ul></div>`;
+  }
+  if(block.sql){
+    html += `<div class="dt-section"><div class="dt-label">SQL</div><div class="dt-sql">${esc(block.sql)}</div></div>`;
+  }
+  const colEdges = block.edges.filter(e => e.fromF && e.toF);
+  if(colEdges.length){
+    html += `<div class="dt-section"><div class="dt-label">Column-level</div><ul class="dt-cols">`;
+    colEdges.forEach(e => { html += `<li>${esc(e.fromT+'.'+e.fromF)} → ${esc(e.toT+'.'+e.toF)}</li>`; });
+    html += `</ul></div>`;
+  }
+  return html;
+}
+
+function showDepTooltip(block, ev){ showCard(depTooltipHTML(block), ev); }
+function showCard(html, ev){
+  clearTimeout(depTooltipHideTimer);
+  depTooltipEl.innerHTML = html;
+  depTooltipEl.classList.add('show');
+  positionDepTooltip(ev);
+}
+function hideCardNow(){ clearTimeout(depTooltipHideTimer); depTooltipEl.classList.remove('show'); }
+
+const CARD_WORD = { one:'one', many:'many' };
+function relText(myCard, myOpt, otherCard, otherOpt){
+  const w = (c, o) => (o ? 'zero-or-' : '') + CARD_WORD[c];
+  return `${w(myCard, myOpt)}-to-${w(otherCard, otherOpt)}`;
+}
+
+// Column card: name + type, constraints, note, and where the column sits in the lineage.
+function columnTooltipHTML(tableName, fieldName){
+  const t = model.tables.get(tableName);
+  const f = t && t.fields.find(x => x.name === fieldName);
+  if(!f) return '';
+  let html = `<div class="dt-head">
+    <div class="dt-colhead"><span class="dt-colname">${esc(f.name)}</span><span class="dt-coltype">${esc(f.type)}</span></div>
+    <div class="dt-sub">${esc(tableName)}</div>`;
+  const badges = [];
+  if(f.pk) badges.push('PK');
+  if(f.notNull) badges.push('NOT NULL');
+  if(f.unique) badges.push('UNIQUE');
+  if(f.increment) badges.push('INCREMENT');
+  if(f.dflt) badges.push('DEFAULT ' + f.dflt);
+  Object.entries(f.props || {}).forEach(([k, v]) => badges.push(v === true ? k.toUpperCase() : `${k}: ${v}`));
+  if(badges.length) html += `<div class="dt-badges">${badges.map(b => `<span class="dt-badge">${esc(b)}</span>`).join('')}</div>`;
+  html += `</div>`;
+
+  if(f.note) html += `<div class="dt-section"><div class="dt-label">Note</div><div class="dt-note">${esc(f.note)}</div></div>`;
+  if(f.check) html += `<div class="dt-section"><div class="dt-label">Check</div><div class="dt-sql">${esc(f.check)}</div></div>`;
+  // column typed with an enum: list its allowed values
+  const en = model.enums && (model.enums.get(canon(f.type)) || model.enums.get(t.schema + '.' + f.type));
+  if(en) html += `<div class="dt-section"><div class="dt-label">Enum values</div><ul class="dt-cols">${en.map(v => `<li>${esc(v.value)}${v.note ? ` <span class="dt-dim">— ${esc(v.note)}</span>` : ''}</li>`).join('')}</ul></div>`;
+
+  const from = model.deps.filter(d => d.toT === tableName && (d.toF === fieldName || !d.toF))
+    .map(d => d.fromF ? `${d.fromT}.${d.fromF}` : `${d.fromT} (whole table)`);
+  const into = model.deps.filter(d => d.fromT === tableName && d.fromF === fieldName).map(d => `${d.toT}.${d.toF}`);
+  if(from.length) html += `<div class="dt-section"><div class="dt-label">Built from</div><ul class="dt-cols">${[...new Set(from)].map(s => `<li>← ${esc(s)}</li>`).join('')}</ul></div>`;
+  if(into.length) html += `<div class="dt-section"><div class="dt-label">Feeds</div><ul class="dt-cols">${[...new Set(into)].map(s => `<li>→ ${esc(s)}</li>`).join('')}</ul></div>`;
+
+  const rels = [];
+  const relExtra = r => [r.name && `fk ${r.name}`, r.onDelete && `on delete ${r.onDelete}`, r.onUpdate && `on update ${r.onUpdate}`, r.inactive && 'inactive', r.composite && 'composite key']
+    .filter(Boolean).map(s => ', ' + s).join('');
+  model.refs.forEach(r => {
+    if(r.fromT === tableName && r.fromF === fieldName) rels.push(`${r.toT}.${r.toF}  (${relText(r.fromCard, r.fromOpt, r.toCard, r.toOpt)}${relExtra(r)})`);
+    if(r.toT === tableName && r.toF === fieldName) rels.push(`${r.fromT}.${r.fromF}  (${relText(r.toCard, r.toOpt, r.fromCard, r.fromOpt)}${relExtra(r)})`);
+  });
+  if(rels.length) html += `<div class="dt-section"><div class="dt-label">Relationships</div><ul class="dt-cols">${rels.map(s => `<li>⇄ ${esc(s)}</li>`).join('')}</ul></div>`;
+  return html;
+}
+
+function tableTooltipHTML(tableName){
+  const t = model.tables.get(tableName);
+  if(!t) return '';
+  const badges = [];
+  if(t.alias) badges.push('alias ' + t.alias);
+  t.partials.forEach(p => badges.push('~' + p));
+  if(t.records) badges.push(`${t.records} sample row${t.records > 1 ? 's' : ''}`);
+  Object.entries(t.props || {}).forEach(([k, v]) => badges.push(v === true ? k : `${k}: ${v}`));
+  let html = `<div class="dt-head">
+    <div class="dt-colhead"><span class="dt-colname">${esc(t.name)}</span></div>
+    <div class="dt-sub">schema ${esc(t.schema)} · group ${esc(t.group)} · ${t.fields.length} columns</div>
+    ${badges.length ? `<div class="dt-badges">${badges.map(b => `<span class="dt-badge">${esc(b)}</span>`).join('')}</div>` : ''}
+  </div>`;
+  if(t.note) html += `<div class="dt-section"><div class="dt-label">Note</div><div class="dt-note">${esc(t.note)}</div></div>`;
+  if(t.indexes.length) html += `<div class="dt-section"><div class="dt-label">Indexes</div><ul class="dt-cols">${t.indexes.map(i => `<li>${esc(i)}</li>`).join('')}</ul></div>`;
+  if(t.checks.length) html += `<div class="dt-section"><div class="dt-label">Checks</div><ul class="dt-cols">${t.checks.map(c => `<li>${esc(c.expr)}${c.name ? ` <span class="dt-dim">(${esc(c.name)})</span>` : ''}</li>`).join('')}</ul></div>`;
+  return html;
+}
+
+function bindHoverCards(){
+  nodesEl.querySelectorAll('.row[data-field]').forEach(r => {
+    r.addEventListener('mouseenter', ev => {
+      const h = columnTooltipHTML(r.dataset.table, r.dataset.field);
+      if(h) showCard(h, ev);
+      highlightColumnLines(r.dataset.table, r.dataset.field);
+    });
+    r.addEventListener('mousemove', positionDepTooltip);
+    r.addEventListener('mouseleave', () => { hideDepTooltipSoon(); hideEdgeFlow(); });
+  });
+  nodesEl.querySelectorAll('.head[data-table]').forEach(h => {
+    h.addEventListener('mouseenter', ev => showCard(tableTooltipHTML(h.dataset.table), ev));
+    h.addEventListener('mousemove', positionDepTooltip);
+    h.addEventListener('mouseleave', hideDepTooltipSoon);
+    h.addEventListener('mousedown', hideCardNow); // grabbing the header to drag — get the card out of the way
+  });
+}
+// window coordinates (the card is position:fixed), flipped to stay fully on screen
+function positionDepTooltip(ev){
+  const w = depTooltipEl.offsetWidth || 340, h = depTooltipEl.offsetHeight || 120;
+  let left = ev.clientX + 16, top = ev.clientY + 12;
+  if(left + w > window.innerWidth - 8) left = ev.clientX - w - 16;
+  if(top + h > window.innerHeight - 8) top = Math.max(8, window.innerHeight - h - 8);
+  depTooltipEl.style.left = Math.max(8, left) + 'px';
+  depTooltipEl.style.top = Math.max(8, top) + 'px';
+}
+function hideDepTooltipSoon(){
+  depTooltipHideTimer = setTimeout(() => depTooltipEl.classList.remove('show'), 120);
+}
+
+function renderLegend(){
+  const groups = new Set();
+  model.tables.forEach(t => groups.add(t.group));
+  let html = '';
+  groups.forEach(g => {
+    html += `<div class="item"><span class="swatch" data-swatch-key="${g}" style="background:${groupColor(g)}"></span>${g}</div>`;
+  });
+  html += `<div class="item"><span class="edge-sample" style="border-top:2.5px dashed var(--text-dim)"></span>lineage (Dep, curved)</div>`;
+  html += `<div class="item"><span class="edge-sample" style="background:var(--text-dim)"></span>relationship (Ref, right-angled)</div>`;
+  legendEl.innerHTML = html;
+}
+
+// ---------- Right panel: tables tree (per-group + per-table visibility, like dbdiagram's search panel) ----------
+const treeList = document.getElementById('treeList');
+const groupBySelect = document.getElementById('groupBySelect');
+groupBySelect.addEventListener('change', () => {
+  treeGroupBy = groupBySelect.value;
+  renderTree();
+  persistState();
+});
+
+function renderTree(){
+  const byGroup = treeGroupBy === 'group';
+  const hiddenSet = byGroup ? hiddenGroups : hiddenSchemas;
+  const keyOf = t => byGroup ? t.group : t.schema;
+
+  const buckets = new Map();
+  model.tables.forEach((t, name) => {
+    const key = keyOf(t);
+    if(!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(name);
+  });
+  const q = (document.getElementById('search').value || '').trim().toLowerCase();
+
+  let html = '';
+  let any = false;
+  buckets.forEach((tableNames, key) => {
+    const keyTextMatch = !q || key.toLowerCase().includes(q);
+    const matchingTables = tableNames.filter(n => n.toLowerCase().includes(q));
+    if(q && !keyTextMatch && matchingTables.length === 0) return;
+    any = true;
+
+    const bucketHidden = hiddenSet.has(key);
+    const visibleCount = tableNames.filter(n => !hiddenTables.has(n) && !bucketHidden).length;
+    const total = tableNames.length;
+    const collapsedInTree = treeCollapsed.has(byGroup?'g:'+key:'s:'+key);
+    const collapsedInDiagram = byGroup && collapsedGroups.has(key);
+    const swatch = byGroup
+      ? `<input type="color" class="tree-color" data-key="${key}" value="${toHex(groupColor(key))}" title="pick a color for this group">`
+      : `<span class="tree-swatch schema-swatch"></span>`;
+
+    html += `<div class="tree-group">
+      <div class="tree-group-head">
+        <button class="tree-chevron" data-key="${key}">${collapsedInTree?'▸':'▾'}</button>
+        ${swatch}
+        <span class="tree-gname" title="${byGroup && model.groupNotes && model.groupNotes[key] ? model.groupNotes[key] : key}">${key}</span>
+        <span class="tree-badge">${visibleCount}/${total}</span>
+        ${byGroup ? `<button class="tree-merge" data-key="${key}" title="${collapsedInDiagram?'split back into separate tables on canvas':'merge this group into one summary node on canvas'}">${collapsedInDiagram?'split':'merge'}</button>` : ''}
+        <button class="tree-eye" data-scope="bucket" data-key="${key}" title="show/hide everything in this ${byGroup?'group':'schema'}">${bucketHidden?'🙈':'👁'}</button>
+      </div>`;
+    if(!collapsedInTree){
+      (q ? matchingTables : tableNames).forEach(n => {
+        const hidden = hiddenTables.has(n) || bucketHidden;
+        html += `<div class="tree-row ${hidden?'off':''}">
+          <span class="tree-tname" title="${n}">${n}</span>
+          <button class="tree-eye" data-scope="table" data-table="${n}" title="show/hide this table">${hidden?'🙈':'👁'}</button>
+        </div>`;
+      });
+    }
+    html += `</div>`;
+  });
+  treeList.innerHTML = any ? html : `<div class="tree-empty">no table matches "${q}"</div>`;
+
+  treeList.querySelectorAll('.tree-chevron').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = (byGroup?'g:':'s:')+btn.dataset.key;
+      treeCollapsed.has(k) ? treeCollapsed.delete(k) : treeCollapsed.add(k);
+      renderTree();
+    });
+  });
+  treeList.querySelectorAll('.tree-merge').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.key;
+      collapsedGroups.has(key) ? collapsedGroups.delete(key) : collapsedGroups.add(key);
+      render(); persistState();
+    });
+  });
+  treeList.querySelectorAll('.tree-eye').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(btn.dataset.scope === 'bucket'){
+        const key = btn.dataset.key;
+        hiddenSet.has(key) ? hiddenSet.delete(key) : hiddenSet.add(key);
+      } else {
+        const n = btn.dataset.table;
+        hiddenTables.has(n) ? hiddenTables.delete(n) : hiddenTables.add(n);
+      }
+      traceState = null; tracebar.classList.remove('show');
+      render(); persistState();
+    });
+  });
+  treeList.querySelectorAll('.tree-color').forEach(inp => {
+    inp.addEventListener('click', e => e.stopPropagation());
+    inp.addEventListener('input', () => applyGroupColorLive(inp.dataset.key, inp.value));
+    inp.addEventListener('change', () => {
+      groupColorOverrides[inp.dataset.key] = inp.value;
+      render(); persistState();
+    });
+  });
+}
+
+function bindExpandButtons(){
+  document.querySelectorAll('.expand-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      collapsedGroups.delete(btn.dataset.group);
+      render(); persistState();
+    });
+  });
+}
+
+function bindRowClicks(){
+  document.querySelectorAll('.row[data-field]').forEach(r => {
+    r.addEventListener('click', () => traceColumn(r.dataset.table, r.dataset.field));
+  });
+}
+
+// ---------- Draggable nodes ----------
+function makeDraggable(el, id){
+  el.addEventListener('mousedown', (e) => {
+    if(e.target.closest('.row') || e.target.closest('.expand-btn')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const pos = positions[id];
+    const startX = e.clientX, startY = e.clientY;
+    const origX = pos.x, origY = pos.y;
+    el.style.zIndex = 5;
+
+    function onMove(ev){
+      const dx = (ev.clientX - startX) / scale;
+      const dy = (ev.clientY - startY) / scale;
+      pos.x = origX + dx;
+      pos.y = origY + dy;
+      el.style.left = pos.x + 'px';
+      el.style.top = pos.y + 'px';
+      manualPos[id] = { x: pos.x, y: pos.y };
+      drawEdges();
+      renderGroupBoxes();
+    }
+    function onUp(){
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      el.style.zIndex = '';
+      persistState();
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+}
+
+// BFS both directions along Dep edges from a start field
+function traceColumn(table, field){
+  const startKey = table+'.'+field;
+  const tableSet = new Set([table]);
+  const fieldSet = new Set([startKey]);
+  const hitEdges = [];
+  const steps = [];
+
+  function connects(e, key, tbl){
+    if(e.fromF && e.toF){
+      const fk = e.fromT+'.'+e.fromF, tk = e.toT+'.'+e.toF;
+      if(fk === key) return { next:tk, note:e.note, label:`${e.fromT}.${e.fromF} → ${e.toT}.${e.toF}` };
+      if(tk === key) return { next:fk, note:e.note, label:`${e.fromT}.${e.fromF} → ${e.toT}.${e.toF}` };
+    } else {
+      if(e.fromT === tbl) return { next:e.toT+'.*', note:e.note, label:`${e.fromT} → ${e.toT} (table)` };
+      if(e.toT === tbl) return { next:e.fromT+'.*', note:e.note, label:`${e.fromT} → ${e.toT} (table)` };
+    }
+    return null;
+  }
+
+  const queue = [startKey];
+  const seenEdges = new Set();
+  while(queue.length){
+    const key = queue.shift();
+    const tbl = key.split('.')[0];
+    model.deps.forEach((e,i) => {
+      const c = connects(e, key, tbl);
+      if(c && !seenEdges.has(i)){
+        seenEdges.add(i);
+        hitEdges.push(e);
+        const nextTbl = c.next.split('.')[0];
+        tableSet.add(nextTbl);
+        if(!c.next.endsWith('.*')) fieldSet.add(c.next);
+        steps.push(c.label + (c.note ? `  — ${c.note}` : ''));
+        queue.push(c.next);
+      }
+    });
+  }
+
+  const displayIdSet = new Set();
+  tableSet.forEach(t => { const id = currentDisplay.idOf(t); if(id) displayIdSet.add(id); });
+
+  traceState = { tableSet, fieldSet, edgeSet: new Set(hitEdges), displayIdSet };
+  drawEdges();
+  tracebar.classList.add('show');
+  tracepath.innerHTML = steps.length
+    ? [...new Set(steps)].map(s=>`• ${s}`).join('<br>')
+    : '(no upstream/downstream Dep edges found for this field)';
+}
+
+document.getElementById('traceClose').addEventListener('click', () => {
+  traceState = null;
+  tracebar.classList.remove('show');
+  drawEdges();
+});
+
+// ---------- Zoom / pan ----------
+let panX=60, panY=30;
+function applyTransform(){
+  viewport.style.transform = `translate(${panX}px,${panY}px) scale(${scale})`;
+  document.getElementById('zoomlabel').textContent = Math.round(scale*100)+'%';
+}
+document.getElementById('zoomin').addEventListener('click', ()=>{ scale=Math.min(2,scale+0.1); applyTransform(); });
+document.getElementById('zoomout').addEventListener('click', ()=>{ scale=Math.max(0.2,scale-0.1); applyTransform(); });
+document.getElementById('zoomfit').addEventListener('click', ()=>{ scale=1; panX=60; panY=30; applyTransform(); });
+document.getElementById('flowAllBtn').addEventListener('click', () => setHighlightAll(!highlightAll));
+// H toggles "highlight all lines" — but never while typing in the editor or a field
+document.addEventListener('keydown', e => {
+  if(e.key !== 'h' && e.key !== 'H') return;
+  if(e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  e.preventDefault();
+  setHighlightAll(!highlightAll);
+});
+
+const canvasPane = document.getElementById('canvasPane');
+let dragging=false, lastX=0, lastY=0;
+canvasPane.addEventListener('mousedown', e => { if(e.target.closest('.node')) return; dragging=true; lastX=e.clientX; lastY=e.clientY; canvasPane.style.cursor='grabbing'; });
+window.addEventListener('mousemove', e => { if(!dragging) return; panX += e.clientX-lastX; panY += e.clientY-lastY; lastX=e.clientX; lastY=e.clientY; applyTransform(); });
+window.addEventListener('mouseup', () => { dragging=false; canvasPane.style.cursor='default'; });
+canvasPane.addEventListener('wheel', e => {
+  if(!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? -0.05 : 0.05;
+  scale = Math.min(2, Math.max(0.2, scale+delta));
+  applyTransform();
+}, { passive:false });
+
+// ---------- Detail level menu (All / Keys) ----------
+const detailChip = document.getElementById('detailChip');
+const detailMenu = document.getElementById('detailMenu');
+const DETAIL_ICONS = { keys: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="5" cy="11" r="3.2"/><path d="M7.3 8.7 14 2M11 5l2 2M12.5 3.5l1.5 1.5"/></svg>', all: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11M1.5 6h13"/></svg>' };
+function setDetail(level, persist = true){
+  detailLevel = level === 'keys' ? 'keys' : 'all';
+  document.getElementById('detailIcon').innerHTML = DETAIL_ICONS[detailLevel];
+  document.getElementById('detailLabel').textContent = detailLevel === 'keys' ? 'Keys' : 'All';
+  detailMenu.querySelectorAll('.dm-item').forEach(b => b.setAttribute('aria-checked', b.dataset.level === detailLevel ? 'true' : 'false'));
+  if(persist){ try{ localStorage.setItem('lineage-detail', detailLevel); }catch(_){} render(); }
+}
+function closeDetailMenu(focusChip){ detailMenu.hidden = true; detailChip.setAttribute('aria-expanded', 'false'); if(focusChip) detailChip.focus(); }
+detailChip.addEventListener('click', e => {
+  e.stopPropagation();
+  if(!detailMenu.hidden){ closeDetailMenu(); return; }
+  detailMenu.hidden = false; detailChip.setAttribute('aria-expanded', 'true');
+  (detailMenu.querySelector('.dm-item[aria-checked="true"]') || detailMenu.querySelector('.dm-item')).focus();
+});
+detailMenu.addEventListener('click', e => e.stopPropagation());
+detailMenu.querySelectorAll('.dm-item').forEach(b => b.addEventListener('click', () => { setDetail(b.dataset.level); closeDetailMenu(true); }));
+detailMenu.addEventListener('keydown', e => {
+  const items = [...detailMenu.querySelectorAll('.dm-item')];
+  const i = items.indexOf(document.activeElement);
+  if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
+  if(e.key === 'Escape'){ e.preventDefault(); closeDetailMenu(true); }
+});
+document.addEventListener('click', () => { if(!detailMenu.hidden) closeDetailMenu(); });
+
+// ---------- mode chips ----------
+document.querySelectorAll('.chip[data-mode]').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip[data-mode]').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    mode = chip.dataset.mode;
+    drawEdges();
+  });
+});
+
+// ---------- search ----------
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.node').forEach(n => {
+    if(!q){ n.style.outline='none'; return; }
+    const hit = n.dataset.id.toLowerCase().includes(q);
+    n.style.outline = hit ? '2px solid var(--accent)' : 'none';
+  });
+  renderTree();
+});
+
+// ---------- Editor pane collapse ----------
+const editorPane = document.getElementById('editorPane');
+const paneToggle = document.getElementById('paneToggle');
+function setEditorCollapsed(collapsed){
+  editorPane.classList.toggle('collapsed', collapsed);
+  paneToggle.textContent = collapsed ? '›' : '‹';
+  paneToggle.title = collapsed ? 'show schema source' : 'collapse schema source';
+  try{ localStorage.setItem('lineage-editor-collapsed', collapsed ? '1' : '0'); }catch(_){}
+}
+paneToggle.addEventListener('click', () => setEditorCollapsed(!editorPane.classList.contains('collapsed')));
+
+const tablesPane = document.getElementById('tablesPane');
+const paneToggle2 = document.getElementById('paneToggle2');
+function setTreeCollapsed2(collapsed){
+  tablesPane.classList.toggle('collapsed', collapsed);
+  paneToggle2.textContent = collapsed ? '‹' : '›';
+  paneToggle2.title = collapsed ? 'show tables panel' : 'collapse tables panel';
+  try{ localStorage.setItem('lineage-tree-collapsed', collapsed ? '1' : '0'); }catch(_){}
+}
+paneToggle2.addEventListener('click', () => setTreeCollapsed2(!tablesPane.classList.contains('collapsed')));
+
+// ---------- Views (tailored perspectives) ----------
+const viewsChip = document.getElementById('viewsChip');
+const viewsPanel = document.getElementById('viewsPanel');
+viewsChip.addEventListener('click', (e) => { e.stopPropagation(); viewsPanel.classList.toggle('show'); renderViewsPanel(); });
+viewsPanel.addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => viewsPanel.classList.remove('show'));
+
+function loadViews(){ try{ return JSON.parse(localStorage.getItem('lineage-views')||'{}'); }catch(_){ return {}; } }
+function saveViewsToStorage(v){ try{ localStorage.setItem('lineage-views', JSON.stringify(v)); }catch(_){} }
+
+function renderViewsPanel(){
+  const views = loadViews();
+  let html = `<div class="vp-row"><input id="viewNameInput" placeholder="name this view…"><button id="viewSaveBtn">Save</button></div>`;
+  html += `<div class="vp-list">`;
+  const names = Object.keys(views);
+  if(names.length === 0) html += `<div class="vp-empty">no saved views yet — hide/collapse some groups, then save</div>`;
+  names.forEach(name => {
+    html += `<div class="vp-item"><span class="vp-apply" data-name="${name}">${name}</span><button class="vp-del" data-name="${name}" title="delete">✕</button></div>`;
+  });
+  html += `</div><div class="vp-row"><button id="viewResetBtn" style="flex:1">Reset — show &amp; expand all</button></div>`;
+  viewsPanel.innerHTML = html;
+
+  document.getElementById('viewSaveBtn').addEventListener('click', () => {
+    const input = document.getElementById('viewNameInput');
+    const name = input.value.trim();
+    if(!name) return;
+    const vs = loadViews();
+    vs[name] = { hidden: [...hiddenGroups], hiddenSchemas: [...hiddenSchemas], collapsed: [...collapsedGroups], groupBy: treeGroupBy, detail: detailLevel };
+    saveViewsToStorage(vs);
+    renderViewsPanel();
+  });
+  document.getElementById('viewResetBtn').addEventListener('click', () => {
+    hiddenGroups = new Set(); hiddenSchemas = new Set(); collapsedGroups = new Set();
+    render(); persistState(); renderViewsPanel();
+  });
+  viewsPanel.querySelectorAll('.vp-apply').forEach(el => {
+    el.addEventListener('click', () => {
+      const vs = loadViews();
+      const v = vs[el.dataset.name];
+      if(!v) return;
+      hiddenGroups = new Set(v.hidden);
+      hiddenSchemas = new Set(v.hiddenSchemas || []);
+      collapsedGroups = new Set(v.collapsed);
+      treeGroupBy = v.groupBy === 'schema' ? 'schema' : 'group';
+      groupBySelect.value = treeGroupBy;
+      if(v.detail){ setDetail(v.detail, false); try{ localStorage.setItem('lineage-detail', detailLevel); }catch(_){} }
+      traceState = null; tracebar.classList.remove('show');
+      render(); persistState();
+    });
+  });
+  viewsPanel.querySelectorAll('.vp-del').forEach(el => {
+    el.addEventListener('click', () => {
+      const vs = loadViews();
+      delete vs[el.dataset.name];
+      saveViewsToStorage(vs);
+      renderViewsPanel();
+    });
+  });
+}
+
+// ---------- parse + rebuild pipeline ----------
+const srcEl = document.getElementById('src');
+let debounceTimer;
+function persistState(){
+  try{
+    localStorage.setItem('lineage-src', srcEl.value);
+    localStorage.setItem('lineage-ui', JSON.stringify({ hidden:[...hiddenGroups], hiddenSchemas:[...hiddenSchemas], hiddenTables:[...hiddenTables], collapsed:[...collapsedGroups], groupBy:treeGroupBy, groupColors:groupColorOverrides, manualPos }));
+  }catch(_){}
+}
+function rebuild(){
+  try{
+    model = parseSchema(srcEl.value);
+    { const kc = computeKeyCols(model); model.keyCols = kc.keys; model.pkCols = kc.pks; }
+    traceState = null;
+    tracebar.classList.remove('show');
+    render();
+    if(model.errors.length){
+      statusEl.textContent = `warning${model.errors.length > 1 ? ' (' + model.errors.length + ')' : ''}: ` + model.errors[0];
+      statusEl.title = model.errors.join('\n');
+      statusEl.classList.add('err');
+    } else {
+      const pj = model.project ? `${model.project.name || 'project'}${model.project.databaseType ? ' (' + model.project.databaseType + ')' : ''} · ` : '';
+      statusEl.textContent = `parsed ✓  ${pj}${model.tables.size} tables, ${model.refs.length} refs, ${model.deps.length} deps`;
+      statusEl.title = statusEl.textContent;
+      statusEl.classList.remove('err');
+    }
+    persistState();
+    reportDirty();
+  }catch(err){
+    statusEl.textContent = 'parse error: ' + err.message;
+    statusEl.classList.add('err');
+  }
+}
+srcEl.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(rebuild, 220);
+});
+
+document.querySelectorAll('.examples-row button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    srcEl.value = btn.dataset.ex === 'pipeline' ? PIPELINE_EXAMPLE : MINIMAL_EXAMPLE;
+    manualPos = {}; hiddenGroups = new Set(); hiddenTables = new Set(); collapsedGroups = new Set(); groupColorOverrides = {};
+    rebuild();
+  });
+});
+
+// ---------- boot ----------
+let initialSrc = PIPELINE_EXAMPLE;
+try{
+  const savedSrc = localStorage.getItem('lineage-src');
+  if(savedSrc) initialSrc = savedSrc;
+  const savedUi = JSON.parse(localStorage.getItem('lineage-ui') || 'null');
+  if(savedUi){
+    hiddenGroups = new Set(savedUi.hidden || []);
+    hiddenSchemas = new Set(savedUi.hiddenSchemas || []);
+    hiddenTables = new Set(savedUi.hiddenTables || []);
+    collapsedGroups = new Set(savedUi.collapsed || []);
+    treeGroupBy = savedUi.groupBy === 'schema' ? 'schema' : 'group';    groupColorOverrides = savedUi.groupColors || {};
+    manualPos = savedUi.manualPos || {};
+  }
+}catch(_){}
+groupBySelect.value = treeGroupBy;
+srcEl.value = initialSrc;
+try{ if(localStorage.getItem('lineage-editor-collapsed') === '1') setEditorCollapsed(true); }catch(_){}
+try{ if(localStorage.getItem('lineage-tree-collapsed') === '1') setTreeCollapsed2(true); }catch(_){}
+try{ const dl = localStorage.getItem('lineage-detail'); if(dl) setDetail(dl, false); }catch(_){}
+try{ if(localStorage.getItem('lineage-highlight-all') === '1'){ highlightAll = true; const fb = document.getElementById('flowAllBtn'); fb.classList.add('on'); fb.setAttribute('aria-pressed', 'true'); } }catch(_){}
+// ---------- Native Mac app bridge (inactive in a browser) ----------
+// The Mac app loads/saves .dbml files through window.SLS and shows the
+// "unsaved changes" dot from the 'dirty' messages below.
+const nativeApp = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sls;
+let savedText = srcEl.value;
+function reportDirty(){
+  if(nativeApp) nativeApp.postMessage({ type: 'dirty', dirty: srcEl.value !== savedText });
+}
+window.SLS = {
+  getSource: () => srcEl.value,
+  // a newly opened file starts with a fresh layout (positions from another file don't apply)
+  loadSource(text){
+    srcEl.value = text;
+    savedText = text;
+    manualPos = {}; hiddenGroups = new Set(); hiddenSchemas = new Set(); hiddenTables = new Set(); collapsedGroups = new Set();
+    scale = 1; panX = 60; panY = 30; applyTransform();
+    rebuild();
+  },
+  markSaved(){ savedText = srcEl.value; reportDirty(); },
+};
+
+rebuild();
+applyTransform();
+if(nativeApp){ document.documentElement.classList.add('in-mac-app'); nativeApp.postMessage({ type: 'ready' }); }
+
+})();
+</script>
